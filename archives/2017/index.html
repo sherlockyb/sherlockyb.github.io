@@ -857,7 +857,9 @@ function showTime(Counter) {
 	$(".leancloud_visitors").each(function() {
 		var url = $(this).attr("id").trim();
 		query.equalTo("url", url);
-		query.find({content= 0) {
+		query.find({
+			success: function(results) {
+				if (results.length == 0) {
 					var content = '0 ' + $(document.getElementById(url)).text();
 					$(document.getElementById(url)).text(content);
 					return;
