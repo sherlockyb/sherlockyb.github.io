@@ -390,29 +390,20 @@
 
       
         
-          
-            <p>  最近项目中有用到Shell脚本，难免会与一些以前没用到甚至没见过的Linux命令打交道，借此番机会也算是学习一哈，记录在此，以供日后参考。后续若再接触新的命令也会更新到此。</p>
-<h2 id="tee"><a href="#tee" class="headerlink" title="tee"></a>tee</h2><ul>
+          <p>  最近项目中有用到Shell脚本，难免会与一些以前没用到甚至没见过的Linux命令打交道，借此番机会也算是学习一哈，记录在此，以供日后参考。后续若再接触新的命令也会更新到此。</p>
+<h2 id="tee"><a href="#tee" class="headerlink" title="tee"></a><a href="http://www.gnu.org/software/coreutils/manual/html_node/tee-invocation.html#tee-invocation">tee</a></h2><ul>
 <li><p>用途：重定向输出到多个文件或进程。</p>
 </li>
 <li><p>简介：该命令读取标准输入，并将内容同时输出到标准输出（屏幕）和多个文件中。</p>
 </li>
-<li><p>应用场景：当我们重定向输出到文件中时，使用常规的“&gt;”符号无法直接从屏幕上看到原输出，使用tee就可在重定向文件的同时将内容输出到标准输出（屏幕）。</p>
-</li>
-<li><p>用法：tee [OPTION]…   [FILE]…</p>
-<p>-a, 追加到给定的文件，没有此选项时默认是覆盖</p>
-<p>-i, 忽略中断信号</p>
-</li>
-<li><p>示例：</p>
-<p>ls | tee  | out.txt</p>
-<p>cat 1.txt | tee -a out.txt</p>
-</li>
-<li><p>注意事项：</p>
-<p>在使用管道线时，前一个命令的标准错误输出不会被tee读取。</p>
-</li>
 </ul>
-
-          
+          <!--noindex-->
+          <div class="post-button text-center">
+            <a class="btn" href="/2017/04/10/common-linux-commands/#more" rel="contents">
+              阅读全文 &raquo;
+            </a>
+          </div>
+          <!--/noindex-->
         
       
     </div>
