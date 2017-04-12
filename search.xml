@@ -4,31 +4,66 @@
   
     
     <entry>
-      <title><![CDATA[Linux常用命令（持续更新）]]></title>
+      <title><![CDATA[Linux常用命令]]></title>
       <url>http://www.yangbing.club/2017/04/10/common-linux-commands/</url>
       <content type="html"><![CDATA[<p>  最近项目中有用到Shell脚本，难免会与一些以前没用到甚至没见过的Linux命令打交道，借此番机会也算是学习一哈，记录在此，以供日后参考。后续若再接触新的命令也会更新到此。</p>
-<h2 id="tee"><a href="#tee" class="headerlink" title="tee"></a><a href="http://www.gnu.org/software/coreutils/manual/html_node/tee-invocation.html#tee-invocation" target="_blank" rel="external">tee</a></h2><ul>
-<li><p>用途：重定向输出到多个文件或进程。</p>
-</li>
-<li><p>简介：该命令读取标准输入，并将内容同时输出到标准输出（屏幕）和多个文件中。</p>
-</li>
-</ul>
 <a id="more"></a>
-<ul>
-<li><p>应用场景：当我们重定向输出到文件中时，使用常规的“&gt;”符号无法直接从屏幕上看到原输出，使用tee就可在重定向文件的同时将内容输出到标准输出（屏幕）。</p>
-</li>
-<li><p>用法：tee [OPTION]…   [FILE]…</p>
-<p>-a, 追加到给定的文件，没有此选项时默认是覆盖</p>
-<p>-i, 忽略中断信号</p>
-</li>
-<li><p>示例：</p>
-<p>ls | tee  | out.txt</p>
-<p>cat 1.txt | tee -a out.txt</p>
-</li>
-<li><p>注意事项：</p>
-<p>在使用管道线时，前一个命令的标准错误输出不会被tee读取。</p>
-</li>
-</ul>
+<h2 id="tee"><a href="#tee" class="headerlink" title="tee"></a><a href="http://www.gnu.org/software/coreutils/manual/html_node/tee-invocation.html#tee-invocation" target="_blank" rel="external">tee</a></h2><table>
+<thead>
+<tr>
+<th style="text-align:left">要点</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">用途</td>
+<td>重定向输出到多个文件或进程</td>
+</tr>
+<tr>
+<td style="text-align:left">简介</td>
+<td>该命令读取标准输入，并将内容同时输出到标准输出（屏幕）和多个文件中。</td>
+</tr>
+<tr>
+<td style="text-align:left">应用场景</td>
+<td>当我们重定向输出到文件中时，使用常规的“&gt;”符号无法直接从屏幕上看到原输出，使用tee就可在重定向文件的同时将内容输出到标准输出（屏幕）</td>
+</tr>
+<tr>
+<td style="text-align:left">用法</td>
+<td>tee [OPTION]…   [FILE]…<br>-a, 追加到给定的文件，没有此选项时默认是覆盖<br>-i, 忽略中断信号</td>
+</tr>
+<tr>
+<td style="text-align:left">示例</td>
+<td>ls &#124; tee &#124; out.txt<br>cat 1.txt &#124; tee -a out.txt</td>
+</tr>
+<tr>
+<td style="text-align:left">注意事项</td>
+<td>在使用管道线时，前一个命令的标准错误输出不会被tee读取。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="date"><a href="#date" class="headerlink" title="date"></a><a href="http://www.gnu.org/software/coreutils/manual/html_node/date-invocation.html#date-invocation" target="_blank" rel="external">date</a></h2><table>
+<thead>
+<tr>
+<th style="text-align:left">要点</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">简介</td>
+<td>根据给定格式显示日期时间或设置系统日期时间</td>
+</tr>
+<tr>
+<td style="text-align:left">用法</td>
+<td>date [OPTION]… [+FORMAT]<br>date [-u&#124;–utc&#124;–universal][ MMDDhhmm[[CC]YY][.ss] ]<br><br>OPTION: -d -f -r -R -rfc-2822 -s -u –help<br>FORMAT: %% %a %A %b %B %c %C %d %D…</td>
+</tr>
+<tr>
+<td style="text-align:left">示例</td>
+<td>date -d now +%Y%m%d   用指定格式显示当前时间<br>date -r text.log   显示文件最后修改时间<br>date -s “2013-09-06 00:00:00”   设置系统时间</td>
+</tr>
+</tbody>
+</table>
 ]]></content>
       
         <categories>
