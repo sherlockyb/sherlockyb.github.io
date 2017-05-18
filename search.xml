@@ -39,7 +39,7 @@
 <td>ls &#124; tee &#124; out.txt<br>cat 1.txt &#124; tee -a out.txt</td>
 </tr>
 <tr>
-<td style="text-align:left">注意事项</td>
+<td style="text-align:left">注意</td>
 <td>在使用管道线时，前一个命令的标准错误输出不会被tee读取。</td>
 </tr>
 </tbody>
@@ -90,6 +90,30 @@
 </table>
 <p>示例如下：</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div></pre></td><td class="code"><pre><div class="line">while getopts &apos;:hf:g:s:t:&apos; OPTION</div><div class="line">do</div><div class="line">	case $OPTION</div><div class="line">	in</div><div class="line">		h) usage;;			#h后面无&quot;:&quot;，表示不带参数，usage是打印用法详情</div><div class="line">		f) FILENAME=$OPTARG;;</div><div class="line">		g) GROUP=$OPTARG;;</div><div class="line">		s) START=$OPTARG;;</div><div class="line">		t) TYPE=$OPTARG;;</div><div class="line">		:) echo &quot;选项\&quot;-$OPTARG\&quot; 后面缺少对应参数，将使用默认值;;</div><div class="line">		\?)echo &quot;错误的选项 -$OPTARG,将退出&quot;;;</div><div class="line">	esac</div><div class="line">done</div></pre></td></tr></table></figure>
+<h2 id="wc"><a href="#wc" class="headerlink" title="wc"></a><a href="http://www.gnu.org/software/coreutils/manual/html_node/wc-invocation.html#wc-invocation" target="_blank" rel="external">wc</a></h2><table>
+<thead>
+<tr>
+<th>要点</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>简介</td>
+<td>word count，统计给定文件（可指定多个）或标准输入（没给定文件时）中字节数、字符数、词数（以空白符分割的词数）以及行数。</td>
+</tr>
+<tr>
+<td>用法</td>
+<td><strong>wc</strong> [<em>option</em>]… [<em>file</em>]…<br>option有如下选项：<br>-c, –bytes　　　　打印字节数<br>-m, –chars 　　　　打印字符数<br>-l, –lines　　　　打印行数<br>-L, –max-line-length　　　　打印最长行的长度<br>-w, –words　　　　打印词数，一个词被定义为以空白符分割的字符串<br>    –help　　　　展示帮助信息</td>
+</tr>
+<tr>
+<td>注意</td>
+<td>输出：wc会为每个文件打印一行计数，如果文件是作为参数，则会为每个文件打印两列：统计数 文件名，并在最后追加一行打印总两列：计数 total。<br>wc通常与管道线结合使用，直接打印计数</td>
+</tr>
+</tbody>
+</table>
+<p>示例如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line">wc -l readme.txt version.txt        #统计指定的两个文件的行数，输出如下</div><div class="line">27	readme.txt</div><div class="line"> 1	version.txt</div><div class="line">28	total</div><div class="line">cat readme.txt | wc -c              #结合管道，只输出统计数，如下</div><div class="line">898</div><div class="line">ls -l | wc -l                       #统计当前目录下的文件数</div><div class="line">8</div></pre></td></tr></table></figure>
 ]]></content>
       
         <categories>
