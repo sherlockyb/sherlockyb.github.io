@@ -76,8 +76,7 @@
 </li>
 </ul>
 </blockquote>
-<h3 id="3-前提（环境假设）"><a href="#3-前提（环境假设）" class="headerlink" title="3.前提（环境假设）"></a>3.前提（环境假设）</h3><p>　　Kerberos</p>
-<ul>
+<h3 id="3-前提（环境假设）"><a href="#3-前提（环境假设）" class="headerlink" title="3.前提（环境假设）"></a>3.前提（环境假设）</h3><ul>
 <li>共享密钥：在协议工作前，客户端与KDC，KDC与服务端都确保有了各自的共享密钥。</li>
 <li>防Dos攻击：Kerberos协议本身并没有解决Dos攻击（<a href="https://en.wikipedia.org/wiki/Denial-of-service_attack" target="_blank" rel="external">Denial of service</a>，拒绝服务）防范问题，通常是由系统管理员和用户自己去定期探测并解决这样的攻击。</li>
 <li>保障安全个体自身安全：参与到Kerberos协议中的安全个体必须确保其秘钥的安全性，一旦秘钥泄露或被攻击者暴力破解，那么攻击者就能随意地伪装安全个体，做一些不和谐的事情。</li>
