@@ -97,7 +97,7 @@
 <meta property="og:description" content="最近老在项目的shell脚本中看到kinit这个东西，完整的命令是
 　　 kinit -k -t ./conf/kerberos.keytab sherlocky/admin@EXAMPLE.COM
 　　查阅一番资料后了解到，之所以有这个命令，是由于该shell脚本接下来会访问Hadoop集群，从上面拉取文件做一些处理任务，并将结果存到Hadoop集群上，那么该命令的作用就是进行身份验证（Au">
-<meta property="og:updated_time" content="2017-06-04T07:15:19.625Z">
+<meta property="og:updated_time" content="2017-06-04T07:27:45.288Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="从kinit到kerberos安全机制">
 <meta name="twitter:description" content="最近老在项目的shell脚本中看到kinit这个东西，完整的命令是
@@ -451,10 +451,10 @@
 </ul>
 </li>
 <li><p>客户端收到消息后，尝试用SK1解密消息E，得到Client/SS会话密钥SK2</p>
-<h4 id="2-3-服务验证"><a href="#2-3-服务验证" class="headerlink" title="2.3 服务验证"></a>2.3 服务验证</h4></li>
+</li>
 </ul>
 </blockquote>
-<p>　　此过程是客户端与服务端相互验证，并通信</p>
+<h4 id="2-3-服务验证"><a href="#2-3-服务验证" class="headerlink" title="2.3 服务验证"></a>2.3 服务验证</h4><p>　　此过程是客户端与服务端相互验证，并通信</p>
 <blockquote>
 <ul>
 <li><p>客户端向服务端发送如下两条消息：</p>

@@ -53,10 +53,10 @@
 </ul>
 </li>
 <li><p>客户端收到消息后，尝试用SK1解密消息E，得到Client/SS会话密钥SK2</p>
-<h4 id="2-3-服务验证"><a href="#2-3-服务验证" class="headerlink" title="2.3 服务验证"></a>2.3 服务验证</h4></li>
+</li>
 </ul>
 </blockquote>
-<p>　　此过程是客户端与服务端相互验证，并通信</p>
+<h4 id="2-3-服务验证"><a href="#2-3-服务验证" class="headerlink" title="2.3 服务验证"></a>2.3 服务验证</h4><p>　　此过程是客户端与服务端相互验证，并通信</p>
 <blockquote>
 <ul>
 <li><p>客户端向服务端发送如下两条消息：</p>
