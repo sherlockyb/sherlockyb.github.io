@@ -237,6 +237,26 @@
 </table>
 <p>示例如下：</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line">wc -l readme.txt version.txt        #统计指定的两个文件的行数，输出如下</div><div class="line">27	readme.txt</div><div class="line"> 1	version.txt</div><div class="line">28	total</div><div class="line">cat readme.txt | wc -c              #结合管道，只输出统计数，如下</div><div class="line">898</div><div class="line">ls -l | wc -l                       #统计当前目录下的文件数</div><div class="line">8</div></pre></td></tr></table></figure>
+<h2 id="cp"><a href="#cp" class="headerlink" title="cp"></a><a href="http://www.gnu.org/software/coreutils/manual/html_node/cp-invocation.html#cp-invocation" target="_blank" rel="external">cp</a></h2><table>
+<thead>
+<tr>
+<th>要点</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>简介</td>
+<td>Copy files and directories，复制一个或多个文件或目录到指定的文件或目录</td>
+</tr>
+<tr>
+<td>用法</td>
+<td>cp [<em>option</em>]… <em>source</em>… <em>dest</em><br>option有如下选项：<br>-f,–force　　　强行复制文件或目录，不论目标文件或目录是否已存在<br>-i,–interactive　　　覆盖既有文件之前先询问用户<br>-r/R,–recursive　　　递归地复制目录，该选项<strong>只适用于目录</strong>，不能用于复制文件或符号链接<br>-b,–backup[=<em>method</em>]　　　为即将删除或覆盖的目标文件进行备份<br>-s,–symbolic-link　　　对源文件建立符号连接，而非复制文件<br>-S,–suffix=<em>suffix</em>　　　备份文件时，用指定后缀”<em>suffix</em>“代替文件的默认后缀<br>-v,–verbose　　　复制每个文件前，打印文件名<br><br>source(源文件)：指定源文件列表。默认情况下，cp不能复制目录，若要复制目录，必须使用-r选项<br>dest(目标文件或目录)：当source为多个文件时，dest必须是目录</td>
+</tr>
+</tbody>
+</table>
+<p>示例如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line">cp file1 file2                       #将file1复制一份，并命名为file2</div><div class="line">cp -f file1 dir2/                    #将file1强行复制到目录dir2下</div><div class="line">cp -fr dir1 dir2/                    #递归地复制目录dir1到目录dir2下</div></pre></td></tr></table></figure>
 ]]></content>
       
         <categories>
@@ -248,9 +268,9 @@
         
         <tags>
             
-            <tag> Linux命令 </tag>
-            
             <tag> Shell编程 </tag>
+            
+            <tag> Linux命令 </tag>
             
         </tags>
         
