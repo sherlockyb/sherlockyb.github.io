@@ -286,10 +286,10 @@
     
       <div class="tag-cloud">
         <div class="tag-cloud-title">
-            目前共计 7 个标签
+            目前共计 8 个标签
         </div>
         <div class="tag-cloud-tags">
-          <a href="/tags/Linux命令/" style="font-size: 12px; color: #ccc">Linux命令</a> <a href="/tags/Shell编程/" style="font-size: 30px; color: #111">Shell编程</a> <a href="/tags/Spring/" style="font-size: 12px; color: #ccc">Spring</a> <a href="/tags/kerberos/" style="font-size: 12px; color: #ccc">kerberos</a> <a href="/tags/事务管理/" style="font-size: 12px; color: #ccc">事务管理</a> <a href="/tags/安全/" style="font-size: 12px; color: #ccc">安全</a> <a href="/tags/源码/" style="font-size: 12px; color: #ccc">源码</a>
+          <a href="/tags/Linux命令/" style="font-size: 12px; color: #ccc">Linux命令</a> <a href="/tags/Shell编程/" style="font-size: 30px; color: #111">Shell编程</a> <a href="/tags/Spring/" style="font-size: 12px; color: #ccc">Spring</a> <a href="/tags/kerberos/" style="font-size: 12px; color: #ccc">kerberos</a> <a href="/tags/maven/" style="font-size: 12px; color: #ccc">maven</a> <a href="/tags/事务管理/" style="font-size: 12px; color: #ccc">事务管理</a> <a href="/tags/安全/" style="font-size: 12px; color: #ccc">安全</a> <a href="/tags/源码/" style="font-size: 12px; color: #ccc">源码</a>
         </div>
       </div>
     
@@ -303,7 +303,12 @@
           
   <div class="comments" id="comments">
     
-      <div id="cloud-tie-wrapper" class="cloud-tie-wrapper"></div>
+      <div id="disqus_thread">
+        <noscript>
+          Please enable JavaScript to view the
+          <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a>
+        </noscript>
+      </div>
     
   </div>
 
@@ -342,7 +347,7 @@
           
             <div class="site-state-item site-state-posts">
               <a href="/archives">
-                <span class="site-state-item-count">4</span>
+                <span class="site-state-item-count">5</span>
                 <span class="site-state-item-name">日志</span>
               </a>
             </div>
@@ -351,7 +356,7 @@
           
             <div class="site-state-item site-state-categories">
               <a href="/categories">
-                <span class="site-state-item-count">3</span>
+                <span class="site-state-item-count">4</span>
                 <span class="site-state-item-name">分类</span>
               </a>
             </div>
@@ -360,7 +365,7 @@
           
             <div class="site-state-item site-state-tags">
               <a href="/tags">
-                <span class="site-state-item-count">7</span>
+                <span class="site-state-item-count">8</span>
                 <span class="site-state-item-name">标签</span>
               </a>
             </div>
@@ -543,27 +548,37 @@
 
   
 
+    <script type="text/javascript">
+      var disqus_shortname = 'yangbing123';
+      var disqus_identifier = 'tags/index.html';
+
+      var disqus_title = "";
 
 
+      function run_disqus_script(disqus_script) {
+        var dsq = document.createElement('script');
+        dsq.type = 'text/javascript';
+        dsq.async = true;
+        dsq.src = '//' + disqus_shortname + '.disqus.com/' + disqus_script;
+        (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+      }
 
-	
+      run_disqus_script('count.js');
 
+      
+        var disqus_config = function () {
+            this.page.url = disqus_url;
+            this.page.identifier = disqus_identifier;
+            this.page.title = disqus_title;
+        };
+        run_disqus_script('embed.js');
+      
 
-
-
-
-  
-    
-    <script>
-      var cloudTieConfig = {
-        url: document.location.href, 
-        sourceId: "",
-        productKey: "3be5683bc7ff4407834174635175f281",
-        target: "cloud-tie-wrapper"
-      };
     </script>
-    <script src="https://img1.ws.126.net/f2e/tie/yun/sdk/loader.js"></script>
   
+
+
+
 
 
 
