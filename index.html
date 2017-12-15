@@ -297,6 +297,247 @@
   
 
   <article class="post post-type-normal " itemscope itemtype="http://schema.org/Article">
+  <link itemprop="mainEntityOfPage" href="http://www.yangbing.club/2017/12/04/how-to-add-monitor-log-for-struts2-actions/">
+
+  <span style="display:none" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <meta itemprop="name" content="杨冰">
+    <meta itemprop="description" content="">
+    <meta itemprop="image" content="/images/me.jpg">
+  </span>
+
+  <span style="display:none" itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+    <meta itemprop="name" content="小冰的个人博客">
+    <span style="display:none" itemprop="logo" itemscope itemtype="http://schema.org/ImageObject">
+      <img style="display:none;" itemprop="url image" alt="小冰的个人博客" src="">
+    </span>
+  </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">
+            
+            
+              
+                
+                <a class="post-title-link" href="/2017/12/04/how-to-add-monitor-log-for-struts2-actions/" itemprop="url">
+                  如何优雅地为Struts2的action加监控日志
+                </a>
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2017-12-04T15:22:05+08:00">
+                2017-12-04
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Struts2/" itemprop="url" rel="index">
+                    <span itemprop="name">Struts2</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2017/12/04/how-to-add-monitor-log-for-struts2-actions/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2017/12/04/how-to-add-monitor-log-for-struts2-actions/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2017/12/04/how-to-add-monitor-log-for-struts2-actions/" class="leancloud_visitors" data-flag-title="如何优雅地为Struts2的action加监控日志">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">阅读次数 </span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          
+            <p>　　好久没写博客啦，一晃竟已有5个月了，实在是惭愧的很，待整理的checklist还是挺多的，努力一一补上！今天这篇博文源于工作中的一个case：为Struts2中的特定action添加监控日志。对Struts2熟悉的童鞋可能会说，这个不就是常规的aop功能吗，直接利用其自带的拦截器（Interceptor）机制就可轻易实现，so easy！但最终笔者并没有这么干，为何呢？后面会说。这期间，笔者也走了好几条弯路，皆以失败告终，其中牵涉到aop代理的好一些细节知识点，以及一些常见的aop误区，如果没有这些弯路的尝试，可能都不会注意到它，故记录于此，引以为鉴。</p>
+<h1 id="问题背景"><a href="#问题背景" class="headerlink" title="问题背景"></a>问题背景</h1><p>　　最近拿到一个需求：对指定的部分请求增加日志监控，即在方法调用前，做一些统一的业务逻辑判断，对于符合条件的则打印方法名、参数等上下文信息，便于后续统计分析。由于历史原因，当前工程较老，其MVC框架还是基于Struts2的！当然，由于忍受不了Struts2的各种安全漏洞、笨重不堪等问题，该工程的MVC框架也正在向spring MVC迁移。目前的情况是，Struts2和spring MVC并存，而此次所要拦截的请求都属于老的接口，问题就变成如何为Struts2中的action增加日志监控。</p>
+<h1 id="解决方案"><a href="#解决方案" class="headerlink" title="解决方案"></a>解决方案</h1><h2 id="一、初体验"><a href="#一、初体验" class="headerlink" title="一、初体验"></a>一、初体验</h2><p>　　背景中已提到，项目的MVC框架最终会去掉Struts2并完全切换到spring MVC，因此，<strong>为了避免与Struts2过渡耦合</strong>，一开始我就避开了其自带的Interceptor机制，试图用spring aop来解决它，这样就跟MVC框架无关了，后面即便切换到spring MVC，这块也不用再改动。</p>
+<p>　　首先想到了spring中的自动代理创建器，为了与现有的代码保持一致，选用了基于Bean名称匹配的BeanNameAutoProxyCreator，为了讲解的方便，笔者写了个简单的demo，相关类定义如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div></pre></td><td class="code"><pre><div class="line"><span class="comment">/**</span></div><div class="line"> * <span class="doctag">@author</span> sherlockyb</div><div class="line"> * @2017年12月9日</div><div class="line"> */</div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">HelloAction</span> <span class="keyword">extends</span> <span class="title">ActionSupport</span> <span class="keyword">implements</span> <span class="title">ServletRequestAware</span>,</span></div><div class="line">		<span class="title">ServletResponseAware</span> &#123;</div><div class="line">	......</div><div class="line">	<span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">helloA</span><span class="params">()</span> </span>&#123;</div><div class="line">		System.out.println(<span class="string">"say: hello A"</span>);</div><div class="line">	&#125;</div><div class="line">	<span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">helloB</span><span class="params">()</span> </span>&#123;</div><div class="line">		System.out.println(<span class="string">"say: hello B"</span>);</div><div class="line">	&#125;</div><div class="line">	<span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">helloC</span><span class="params">()</span> </span>&#123;</div><div class="line">		System.out.println(<span class="string">"say: hello C"</span>);</div><div class="line">	&#125;</div><div class="line">	......</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div></pre></td><td class="code"><pre><div class="line"><span class="comment">/**</span></div><div class="line"> * <span class="doctag">@author</span> sherlockyb</div><div class="line"> * @2017年12月10日</div><div class="line"> */</div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">GreetingMethodInterceptor</span> <span class="keyword">implements</span> <span class="title">MethodInterceptor</span> </span>&#123;</div><div class="line">	<span class="keyword">private</span> <span class="keyword">final</span> Logger log = LoggerFactory.getLogger(getClass());</div><div class="line">	<span class="meta">@Override</span></div><div class="line">	<span class="function"><span class="keyword">public</span> Object <span class="title">invoke</span><span class="params">(MethodInvocation invocation)</span> <span class="keyword">throws</span> Throwable </span>&#123;</div><div class="line">		log.info(<span class="string">"greeting before invocation..."</span>);</div><div class="line">		Object result = invocation.proceed();</div><div class="line">		log.info(<span class="string">"greeting after invocation"</span>);</div><div class="line">		</div><div class="line">		<span class="keyword">return</span> result;</div><div class="line">	&#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>　　数据库的声明式事务配置<code>appContext-struts2-db.xml</code>如下，之所以要把这个配置专门列出来，因为它与后面的一次报错息息相关，我们暂且往下走。</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">bean</span> <span class="attr">id</span>=<span class="string">"txAdvice"</span> <span class="attr">class</span>=<span class="string">"org.sherlockyb.blogdemos.struts2.aop.TransactionManagerAdvice"</span>&gt;</span><span class="tag">&lt;/<span class="name">bean</span>&gt;</span></div><div class="line"><span class="tag">&lt;<span class="name">aop:config</span>&gt;</span></div><div class="line">  <span class="tag">&lt;<span class="name">aop:pointcut</span> <span class="attr">id</span>=<span class="string">"helloPointcut"</span> <span class="attr">expression</span>=<span class="string">"execution(* org.sherlockyb..*HelloService*.*(..))"</span> /&gt;</span></div><div class="line">  <span class="tag">&lt;<span class="name">aop:advisor</span> <span class="attr">advice-ref</span>=<span class="string">"txAdvice"</span> <span class="attr">pointcut-ref</span>=<span class="string">"helloPointcut"</span> <span class="attr">order</span>=<span class="string">"1"</span> /&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">aop:config</span>&gt;</span></div></pre></td></tr></table></figure>
+<p>　　现在需要对<code>helloA</code>和<code>helloB</code>加日志监控，配置如下：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">bean</span> <span class="attr">name</span>=<span class="string">"greetingInterceptor"</span> <span class="attr">class</span>=<span class="string">"org.sherlockyb.blogdemos.struts2.aop.GreetingMethodInterceptor"</span> /&gt;</span></div><div class="line"><span class="tag">&lt;<span class="name">bean</span> <span class="attr">class</span>=<span class="string">"org.springframework.aop.framework.autoproxy.BeanNameAutoProxyCreator"</span>&gt;</span></div><div class="line">  <span class="tag">&lt;<span class="name">property</span> <span class="attr">name</span>=<span class="string">"beanNames"</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">list</span>&gt;</span></div><div class="line">      <span class="tag">&lt;<span class="name">value</span>&gt;</span>helloAction<span class="tag">&lt;/<span class="name">value</span>&gt;</span></div><div class="line">    <span class="tag">&lt;/<span class="name">list</span>&gt;</span></div><div class="line">  <span class="tag">&lt;/<span class="name">property</span>&gt;</span></div><div class="line">  <span class="tag">&lt;<span class="name">property</span> <span class="attr">name</span>=<span class="string">"interceptorNames"</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">list</span>&gt;</span></div><div class="line">      <span class="tag">&lt;<span class="name">value</span>&gt;</span>greetingAdvisor<span class="tag">&lt;/<span class="name">value</span>&gt;</span></div><div class="line">    <span class="tag">&lt;/<span class="name">list</span>&gt;</span></div><div class="line">  <span class="tag">&lt;/<span class="name">property</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">bean</span>&gt;</span></div><div class="line"><span class="tag">&lt;<span class="name">bean</span> <span class="attr">id</span>=<span class="string">"greetingAdvisor"</span> <span class="attr">class</span>=<span class="string">"org.springframework.aop.support.RegexpMethodPointcutAdvisor"</span>&gt;</span></div><div class="line">  <span class="tag">&lt;<span class="name">property</span> <span class="attr">name</span>=<span class="string">"advice"</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">ref</span> <span class="attr">bean</span>=<span class="string">"greetingInterceptor"</span> /&gt;</span></div><div class="line">  <span class="tag">&lt;/<span class="name">property</span>&gt;</span></div><div class="line">  <span class="tag">&lt;<span class="name">property</span> <span class="attr">name</span>=<span class="string">"patterns"</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">list</span>&gt;</span></div><div class="line">      <span class="tag">&lt;<span class="name">value</span>&gt;</span>org.sherlockyb.blogdemos.struts2.web.action.HelloAction.helloA<span class="tag">&lt;/<span class="name">value</span>&gt;</span></div><div class="line">      <span class="tag">&lt;<span class="name">value</span>&gt;</span>org.sherlockyb.blogdemos.struts2.web.action.HelloAction.helloB<span class="tag">&lt;/<span class="name">value</span>&gt;</span></div><div class="line">    <span class="tag">&lt;/<span class="name">list</span>&gt;</span></div><div class="line">  <span class="tag">&lt;/<span class="name">property</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">bean</span>&gt;</span></div></pre></td></tr></table></figure>
+<p>　　然后用<a href="https://www.getpostman.com/" target="_blank" rel="external">postman</a>测试action请求<code>http://localhost/hello/helloA.action</code>，直接报错：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div></pre></td><td class="code"><pre><div class="line">java.lang.NoSuchMethodException: com.sun.proxy.$Proxy39.helloA()</div><div class="line">	at ognl.OgnlRuntime.callAppropriateMethod(OgnlRuntime.java:<span class="number">1247</span>)</div><div class="line">	at ognl.ObjectMethodAccessor.callMethod(ObjectMethodAccessor.java:<span class="number">68</span>)</div><div class="line">	at com.opensymphony.xwork2.ognl.accessor.XWorkMethodAccessor.callMethodWithDebugInfo(XWorkMethodAccessor.java:<span class="number">117</span>)</div><div class="line">	at com.opensymphony.xwork2.ognl.accessor.XWorkMethodAccessor.callMethod(XWorkMethodAccessor.java:<span class="number">108</span>)</div><div class="line">	at ognl.OgnlRuntime.callMethod(OgnlRuntime.java:<span class="number">1370</span>)</div><div class="line">	at ognl.ASTMethod.getValueBody(ASTMethod.java:<span class="number">91</span>)</div><div class="line">	at ognl.SimpleNode.evaluateGetValueBody(SimpleNode.java:<span class="number">212</span>)</div><div class="line">	at ognl.SimpleNode.getValue(SimpleNode.java:<span class="number">258</span>)</div><div class="line">	at ognl.Ognl.getValue(Ognl.java:<span class="number">467</span>)</div><div class="line">	at ognl.Ognl.getValue(Ognl.java:<span class="number">431</span>)</div><div class="line">	at com.opensymphony.xwork2.ognl.OgnlUtil$<span class="number">3</span>.execute(OgnlUtil.java:<span class="number">352</span>)</div><div class="line">	at com.opensymphony.xwork2.ognl.OgnlUtil.compileAndExecuteMethod(OgnlUtil.java:<span class="number">404</span>)</div><div class="line">	at com.opensymphony.xwork2.ognl.OgnlUtil.callMethod(OgnlUtil.java:<span class="number">350</span>)</div><div class="line">	at com.opensymphony.xwork2.DefaultActionInvocation.invokeAction(DefaultActionInvocation.java:<span class="number">430</span>)</div><div class="line">	at com.opensymphony.xwork2.DefaultActionInvocation.invokeActionOnly(DefaultActionInvocation.java:<span class="number">290</span>)</div><div class="line">	at com.opensymphony.xwork2.DefaultActionInvocation.invoke(DefaultActionInvocation.java:<span class="number">251</span>)</div><div class="line">  ...</div></pre></td></tr></table></figure>
+<p>　　NoSuchMethodException？奇了怪了，<code>TestAction</code>中明明有<code>helloA</code>方法，并且patterns配置中也加了<code>org.sherlockyb.blogdemos.struts2.web.action.helloA</code>的配置，为啥最终生成的代理类却没有这个方法呢？到底是哪里出了问题？带着这个疑问，我们直接从异常信息着手：既然它报的是<code>$Proxy39</code>这个类没有<code>helloA</code>方法，那我们就来debug看一下<code>$Proxy39</code>究竟有哪些内容。</p>
+<p>　　因为<code>OgnlRuntime</code>粒度太细了，太多地方调用，若在这里面打断点还得根据条件断点才能定位到TestAction的调用，比较麻烦，故笔者选择了在调用栈中所处位置较为上层的<code>DefaultActionInvocation</code>。定位到异常信息<code>DefaultActionInvocation.invokeAction(DefaultActionInvocation.java:430)</code>对应的源码，断点打在了源码的第430行，如下：</p>
+<p><img src="/2017/12/04/how-to-add-monitor-log-for-struts2-actions/debug1.png" alt="1"></p>
+<p>然后debug模式运行应用，截获的debug信息如下：</p>
+<p><img src="/2017/12/04/how-to-add-monitor-log-for-struts2-actions/debug2.png" alt="1"></p>
+<p>　　从1处可以看出，原来<code>$Proxy39</code>是JDK动态代理生成的代理类，至于为啥是JDK代理，可以注意到变量<strong>proxyTargetClass</strong>默认是<strong>false</strong>的，也就是说spring aop 默认采用JDK动态代理。我们知道，JDK动态代理是面向接口的，只会为目标类所实现的接口生成代理方法，查看2处<code>interface</code>的内容如下：</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">[interface org.apache.struts2.interceptor.ServletRequestAware, interface org.apache.struts2.interceptor.ServletResponseAware, interface com.opensymphony.xwork2.Action, interface com.opensymphony.xwork2.Validateable, interface com.opensymphony.xwork2.ValidationAware, interface com.opensymphony.xwork2.TextProvider, interface com.opensymphony.xwork2.LocaleProvider, interface java.io.Serializable]</div></pre></td></tr></table></figure>
+<p>这些不正是<code>TestAction</code>直接（ServletRequestAware等）或间接（Action等）实现的接口嘛，而<code>helloA</code>和<code>helloB</code>是<code>TestAction</code>自定义的方法，并不在这些接口的方法中，那么最终的代理类<code>$Proxy39</code>自然不会含有这俩方法，调用时就会报上述错误。</p>
+<h2 id="二、改进"><a href="#二、改进" class="headerlink" title="二、改进"></a>二、改进</h2><p>　　我们的目的是为<code>TestAction</code>中的<code>helloA</code>和<code>helloB</code>方法进行动态代理，但它们不属于<code>TestAction</code>所实现接口中的任何一个方法，显然JDK动态代理满足不了需求，转向CGLib代理，于是将<strong>proxyTargetClass</strong>参数改为<strong>true</strong>，强制其走CGLib代理。配置如下：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">bean</span> <span class="attr">class</span>=<span class="string">"org.springframework.aop.framework.autoproxy.BeanNameAutoProxyCreator"</span>&gt;</span></div><div class="line">  ......</div><div class="line">  <span class="tag">&lt;<span class="name">property</span> <span class="attr">name</span>=<span class="string">"proxyTargetClass"</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">value</span>&gt;</span>true<span class="tag">&lt;/<span class="name">value</span>&gt;</span></div><div class="line">  <span class="tag">&lt;/<span class="name">property</span>&gt;</span></div><div class="line">  ......</div><div class="line"><span class="tag">&lt;/<span class="name">bean</span>&gt;</span></div><div class="line">……</div></pre></td></tr></table></figure>
+<p>依旧用postman测试，依旧报错了：  </p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div></pre></td><td class="code"><pre><div class="line">[ERROR] 2017-12-12 23:17:49,450 [resin-port-80-48] struts2.dispatcher.DefaultDispatcherErrorHandler (CommonsLogger.java:42) -Exception occurred during processing request: Unable to instantiate Action, helloAction,  defined for 'helloA' in namespace '/hello'Error creating bean with name 'helloAction' defined in class path resource [appContext-struts2-action.xml]: Initialization of bean failed; nested exception is org.springframework.aop.framework.AopConfigException: Could not generate CGLIB subclass of class [class com.sun.proxy.$Proxy40]: Common causes of this problem include using a final class or a non-visible class; nested exception is java.lang.IllegalArgumentException: Cannot subclass final class class com.sun.proxy.$Proxy40</div><div class="line">Unable to instantiate Action, helloAction,  defined for 'helloA' in namespace '/hello'Error creating bean with name 'helloAction' defined in class path resource [appContext-struts2-action.xml]: Initialization of bean failed; nested exception is org.springframework.aop.framework.AopConfigException: Could not generate CGLIB subclass of class [class com.sun.proxy.$Proxy40]: Common causes of this problem include using a final class or a non-visible class; nested exception is java.lang.IllegalArgumentException: Cannot subclass final class class com.sun.proxy.$Proxy40 - action - file:/D:/DevCode/workspace/blog-demos/struts2/target/classes/org/sherlockyb/blogdemos/struts2/web/action/conf/struts-hello.xml:9:61</div><div class="line">	at com.opensymphony.xwork2.DefaultActionInvocation.createAction(DefaultActionInvocation.java:317)</div><div class="line">	at com.opensymphony.xwork2.DefaultActionInvocation.init(DefaultActionInvocation.java:398)</div><div class="line">	at com.opensymphony.xwork2.DefaultActionProxy.prepare(DefaultActionProxy.java:194)</div><div class="line">	at org.apache.struts2.impl.StrutsActionProxy.prepare(StrutsActionProxy.java:63)</div><div class="line">	at org.apache.struts2.impl.StrutsActionProxyFactory.createActionProxy(StrutsActionProxyFactory.java:37)</div><div class="line">	at com.opensymphony.xwork2.DefaultActionProxyFactory.createActionProxy(DefaultActionProxyFactory.java:58)</div><div class="line">	at org.apache.struts2.dispatcher.Dispatcher.serviceAction(Dispatcher.java:565)</div><div class="line">	at org.apache.struts2.dispatcher.ng.ExecuteOperations.executeAction(ExecuteOperations.java:81)</div><div class="line">	at org.apache.struts2.dispatcher.ng.filter.StrutsPrepareAndExecuteFilter.doFilter(StrutsPrepareAndExecuteFilter.java:99)</div></pre></td></tr></table></figure>
+<p>　　我们可以注意到异常栈中最底层的一条错误信息：<code>Cannot subclass final class class com.sun.proxy.$Proxy40</code>，这条错误是导致上述报错的最根本原因（root cause），其对应的调用链详情如下：</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line">Caused by: java.lang.IllegalArgumentException: Cannot subclass final class class com.sun.proxy.$Proxy40</div><div class="line">	at net.sf.cglib.proxy.Enhancer.generateClass(Enhancer.java:446)</div><div class="line">	at net.sf.cglib.transform.TransformingClassGenerator.generateClass(TransformingClassGenerator.java:33)</div><div class="line">	at net.sf.cglib.core.DefaultGeneratorStrategy.generate(DefaultGeneratorStrategy.java:25)</div><div class="line">	at net.sf.cglib.core.AbstractClassGenerator.create(AbstractClassGenerator.java:216)</div><div class="line">	at net.sf.cglib.proxy.Enhancer.createHelper(Enhancer.java:377)</div><div class="line">	at net.sf.cglib.proxy.Enhancer.create(Enhancer.java:285)</div><div class="line">	at org.springframework.aop.framework.Cglib2AopProxy.getProxy(Cglib2AopProxy.java:201)</div></pre></td></tr></table></figure>
+<p>　　也就是说，当前面配置的<code>BeanNameAutoProxyCreator</code>尝试为目标类<code>com.sun.proxy.$Proxy40</code>生成CGLib代理时，却发现<strong>这货是final的</strong>！也就是说<strong>JDK动态代理生成的代理类是final的</strong>，你们知道这个知识点嘛？反正在此之前我是没留意过这个，知道的童鞋可举个爪，那说明你走的比我远，要继续保持这样的好奇心。我们言归正传，上述错误表明，在<code>BeanNameAutoProxyCreator</code>生效前，已经有<strong>第三者</strong>为<code>TestAction</code>以JDK动态代理的方式生成了代理类，导致无法再进行CGLib代理。这个第三者到底是谁呢？</p>
+<p>　　起初我想到了Struts2的Interceptor机制，会不会是Struts2事先采用JDK动态代理的方式为<code>TestAction</code>生成了代理，以便加上各种Interceptor增强逻辑？很快，我通过debug跟踪Struts2源码否决了这个猜测：</p>
+<blockquote>
+<p>1、action是交给spring管理的，即<code>StrutsSpringObjectFactory</code>，我们知道action的作用域是<strong>prototype</strong>的，即每来一个请求，Struts2都会通过<code>DefaultActionFactory</code>来buildAction，而实际的创建则是委托给<code>StrutsSpringObjectFactory</code>来处理，也就说Struts2是拿到spring容器构建好的action之后，才做后续的Interceptor过程；</p>
+<p>2、通过仔细阅读<code>DefaultActionInvocation</code>的invoke源码可知，Struts2的Interceptor机制既不是通过JDK动态代理来实现，也没有采纳CGLib代理，而是巧用责任链和迭代等代码技巧来实现的，具体细节等后面单独一篇博文细说。</p>
+</blockquote>
+<p>　　那到底是何方神圣偷偷做了这个事儿呢？<strong>谜底尽在源码中</strong>！通过源码来跟踪下action的创建过程：</p>
+<blockquote>
+<p>1、<code>DefaultActionInvocation</code>——action的创建（每次请求必走逻辑）</p>
+</blockquote>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div></pre></td><td class="code"><pre><div class="line"><span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">createAction</span><span class="params">(Map&lt;String, Object&gt; contextMap)</span> </span>&#123;</div><div class="line">  <span class="comment">// load action</span></div><div class="line">  String timerKey = <span class="string">"actionCreate: "</span> + proxy.getActionName();</div><div class="line">  <span class="keyword">try</span> &#123;</div><div class="line">    UtilTimerStack.push(timerKey);</div><div class="line">    action = objectFactory.buildAction(proxy.getActionName(), proxy.getNamespace(), proxy.getConfig(), contextMap);</div><div class="line">  &#125; <span class="keyword">catch</span> (InstantiationException e) &#123;</div><div class="line">    <span class="keyword">throw</span> <span class="keyword">new</span> XWorkException(<span class="string">"Unable to intantiate Action!"</span>, e, proxy.getConfig());</div><div class="line">  &#125;</div><div class="line">  ......</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<blockquote>
+<p>2、<code>StrutsSpringObjectFactory</code>——spring容器层面的，bean的创建</p>
+</blockquote>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Override</span></div><div class="line"><span class="function"><span class="keyword">public</span> Object <span class="title">buildBean</span><span class="params">(String beanName, Map&lt;String, Object&gt; extraContext, <span class="keyword">boolean</span> injectInternal)</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">  Object o;</div><div class="line">  <span class="keyword">if</span> (appContext.containsBean(beanName)) &#123;</div><div class="line">    o = appContext.getBean(beanName);	<span class="comment">//action从spring容器中获取</span></div><div class="line">  &#125; <span class="keyword">else</span> &#123;</div><div class="line">    Class beanClazz = getClassInstance(beanName);</div><div class="line">    o = buildBean(beanClazz, extraContext);</div><div class="line">  &#125;</div><div class="line">  <span class="keyword">if</span> (injectInternal) &#123;</div><div class="line">    injectInternalBeans(o);</div><div class="line">  &#125;</div><div class="line">  <span class="keyword">return</span> o;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<blockquote>
+<p>3、<code>AbstractAutowireCapableBeanFactory</code>——spring容器中，bean的初始化以及之后的postProcess过程</p>
+</blockquote>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div></pre></td><td class="code"><pre><div class="line"><span class="function"><span class="keyword">protected</span> Object <span class="title">initializeBean</span><span class="params">(<span class="keyword">final</span> String beanName, <span class="keyword">final</span> Object bean, RootBeanDefinition mbd)</span> </span>&#123;</div><div class="line">  ......</div><div class="line">  <span class="keyword">if</span> (mbd == <span class="keyword">null</span> || !mbd.isSynthetic()) &#123;</div><div class="line">    wrappedBean = applyBeanPostProcessorsBeforeInitialization(wrappedBean, beanName);</div><div class="line">  &#125;</div><div class="line">  <span class="keyword">try</span> &#123;</div><div class="line">    invokeInitMethods(beanName, wrappedBean, mbd);</div><div class="line">  &#125;</div><div class="line">  <span class="keyword">catch</span> (Throwable ex) &#123;</div><div class="line">    <span class="keyword">throw</span> <span class="keyword">new</span> BeanCreationException((mbd != <span class="keyword">null</span> ? mbd.getResourceDescription() : <span class="keyword">null</span>),</div><div class="line">					beanName, <span class="string">"Invocation of init method failed"</span>, ex);</div><div class="line">  &#125;</div><div class="line">  <span class="comment">//Bean初始化之后，postProcess处理，如一系列的AutoProxyCreator</span></div><div class="line">  <span class="keyword">if</span> (mbd == <span class="keyword">null</span> || !mbd.isSynthetic()) &#123; </div><div class="line">    wrappedBean = applyBeanPostProcessorsAfterInitialization(wrappedBean, beanName);</div><div class="line">  &#125;</div><div class="line">  <span class="keyword">return</span> wrappedBean;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>　　最终定位到<code>AspectJAwareAdvisorAutoProxyCreator</code>，直接看debug调用栈：<img src="/2017/12/04/how-to-add-monitor-log-for-struts2-actions/debug3.png" alt="1"></p>
+<p>　　首先，我们先看下<code>wrapIfNecessary</code>的核心代码片段如下，其大致功能就是为目标bean创建代理类：先看下bean有没有相关的advice，如果有，则通过createProxy为其创建代理类；否则直接返回原始bean！</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div></pre></td><td class="code"><pre><div class="line"><span class="function"><span class="keyword">protected</span> Object <span class="title">wrapIfNecessary</span><span class="params">(Object bean, String beanName, Object cacheKey)</span> </span>&#123;</div><div class="line">		......</div><div class="line">		<span class="comment">// Create proxy if we have advice.</span></div><div class="line">		Object[] specificInterceptors = getAdvicesAndAdvisorsForBean(bean.getClass(), beanName, <span class="keyword">null</span>);</div><div class="line">		<span class="keyword">if</span> (specificInterceptors != DO_NOT_PROXY) &#123;</div><div class="line">			<span class="keyword">this</span>.advisedBeans.add(cacheKey);</div><div class="line">			Object proxy = createProxy(bean.getClass(), beanName, specificInterceptors, <span class="keyword">new</span> SingletonTargetSource(bean));</div><div class="line">			<span class="keyword">this</span>.proxyTypes.put(cacheKey, proxy.getClass());</div><div class="line">			<span class="keyword">return</span> proxy;</div><div class="line">		&#125;</div><div class="line">		<span class="keyword">this</span>.nonAdvisedBeans.add(cacheKey);</div><div class="line">		<span class="keyword">return</span> bean;</div><div class="line">	&#125;</div></pre></td></tr></table></figure>
+<p>这里bean的debug信息如下：<img src="/2017/12/04/how-to-add-monitor-log-for-struts2-actions/debug4.png" alt="1"></p>
+<p><code>HelloAction@3d696299</code>，这正是我们在xml中定义的原始bean实例！也就说，<code>AspectJAwareAdvisorAutoProxyCreator</code>就是传说中的第三者。那么问题来了：<code>AspectJAwareAdvisorAutoProxyCreator</code>是在什么情况下又是何时被创建的呢？我们并没有显式地在哪里指定，要让它为<code>HelloAction</code>创建代理，这二者是如何关联的起来的呢？</p>
+<p>　　在eclipse中，定位到<code>AspectJAwareAdvisorAutoProxyCreator</code>类的源码，选中其类名，直接<code>Ctrl+Shift+G</code>查看其在workspace中的所有引用（reference）如下：<img src="/2017/12/04/how-to-add-monitor-log-for-struts2-actions/debug5.png" alt="1"></p>
+<p>　　进一步跟进<code>registerAspectJAutoProxyCreatorIfNecessary</code>方法，直接<code>Ctrl+Shift+H</code>查看该方法的上层调用链：<img src="/2017/12/04/how-to-add-monitor-log-for-struts2-actions/debug6.png" alt="debug6"></p>
+<p>　　到这里第一个问题就比较清晰了：由于<code>appContext-struts2-db.xml</code>中通过<code>&lt;aop:config&gt;</code>为数据库操作配置了声明式事务，导致<code>AspectJAwareAdvisorAutoProxyCreator</code>实例的构建。我们再来看第二个问题，即这个AutoProxyCreator是如何与HelloAction关联的，回顾下前面的<code>wrapIfNecessary</code>的源码片段，其中有一个<code>getAdvicesAndAdvisorsForBean</code>方法，它是定义在抽象类AbstractAutoProxyCreator中的抽象方法，其功能如下方的官方注释所说：判断当前目标bean是否需要代理，如果是则返回对应的增强（advice）或切面（advisor）集。具体实现则交给各具体的子类，典型的模板方法设计。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="comment">/**</span></div><div class="line">  * Return whether the given bean is to be proxied, what additional</div><div class="line">  * advices (e.g. AOP Alliance interceptors) and advisors to apply.</div><div class="line">  */</div><div class="line">  <span class="keyword">protected</span> <span class="keyword">abstract</span> Object[] getAdvicesAndAdvisorsForBean(Class&lt;?&gt; beanClass, String beanName, TargetSource customTargetSource) <span class="keyword">throws</span> BeansException;</div></pre></td></tr></table></figure>
+<p><code>AbstractAutoProxyCreator</code>类的继承结构如下：</p>
+<p><img src="/2017/12/04/how-to-add-monitor-log-for-struts2-actions/debug7.png" alt="1"></p>
+<p>其中的<code>AbstractAdvisorAutoProxyCreator</code>很关键，它是第三者<code>AspectJAwareAdvisorAutoProxyCreator</code>的直接父类，并实现抽象方法<code>getAdvicesAndAdvisorsForBean</code>，逻辑如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Override</span></div><div class="line"><span class="keyword">protected</span> Object[] getAdvicesAndAdvisorsForBean(Class beanClass, String beanName, TargetSource targetSource) &#123;</div><div class="line">	List advisors = findEligibleAdvisors(beanClass, beanName);	<span class="comment">//找出bean相关的advisors</span></div><div class="line">	<span class="keyword">if</span> (advisors.isEmpty()) &#123;</div><div class="line">      <span class="keyword">return</span> DO_NOT_PROXY;	<span class="comment">//如果没有advisor，则直接返回约定的DO_NOT_PROXY，表示无需代理</span></div><div class="line">	&#125;</div><div class="line">	<span class="keyword">return</span> advisors.toArray();</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>再看下<code>findEligibleAdvisors</code>具体做了什么：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line"><span class="function"><span class="keyword">protected</span> List&lt;Advisor&gt; <span class="title">findEligibleAdvisors</span><span class="params">(Class beanClass, String beanName)</span> </span>&#123;</div><div class="line">  <span class="comment">//获取当前spring容器中所有的Advisor，除了FactoryBean类型的和目前已构建过的</span></div><div class="line">  List&lt;Advisor&gt; candidateAdvisors = findCandidateAdvisors();</div><div class="line">  List&lt;Advisor&gt; eligibleAdvisors = findAdvisorsThatCanApply(candidateAdvisors, beanClass, beanName);	<span class="comment">//从中筛选出可以应用在bean上的advisor</span></div><div class="line">  extendAdvisors(eligibleAdvisors);</div><div class="line">  <span class="keyword">if</span> (!eligibleAdvisors.isEmpty()) &#123;</div><div class="line">    eligibleAdvisors = sortAdvisors(eligibleAdvisors);</div><div class="line">  &#125;</div><div class="line">  <span class="keyword">return</span> eligibleAdvisors;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>最终通过层层代码跳转，我们来到了<code>AopUtils</code>中判定advisor与bean是否匹配的关键逻辑：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div></pre></td><td class="code"><pre><div class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">boolean</span> <span class="title">canApply</span><span class="params">(Pointcut pc, Class&lt;?&gt; targetClass, <span class="keyword">boolean</span> hasIntroductions)</span> </span>&#123;</div><div class="line">  <span class="keyword">if</span> (!pc.getClassFilter().matches(targetClass)) &#123;	<span class="comment">//先看类级别是否匹配，不匹配就直接返回false</span></div><div class="line">    <span class="keyword">return</span> <span class="keyword">false</span>;</div><div class="line">  &#125;</div><div class="line">  <span class="comment">//方法匹配器：切点的一部分，判定目标方法是否与切点表达式匹配</span></div><div class="line">  MethodMatcher methodMatcher = pc.getMethodMatcher();</div><div class="line">  IntroductionAwareMethodMatcher introductionAwareMethodMatcher = <span class="keyword">null</span>;</div><div class="line">  <span class="keyword">if</span> (methodMatcher <span class="keyword">instanceof</span> IntroductionAwareMethodMatcher) &#123;</div><div class="line">    introductionAwareMethodMatcher = (IntroductionAwareMethodMatcher) methodMatcher;</div><div class="line">  &#125;</div><div class="line">  Set&lt;Class&gt; classes = <span class="keyword">new</span> HashSet&lt;Class&gt;(ClassUtils.getAllInterfacesForClassAsSet(targetClass));</div><div class="line">  classes.add(targetClass);</div><div class="line">  <span class="comment">/**这里的classes由两部分组成：一个是目标类所实现的所有接口；一个是目标类本身(targetClass)。结合下面的循环扫描Methods的逻辑，也就是说，它会扫描目标类所实现的所有接口中定义的方法和目标类自身定义的方法</span></div><div class="line">  */</div><div class="line">  <span class="keyword">for</span> (Class&lt;?&gt; clazz : classes) &#123;</div><div class="line">    Method[] methods = clazz.getMethods();</div><div class="line">    <span class="keyword">for</span> (Method method : methods) &#123;</div><div class="line">      <span class="keyword">if</span> ((introductionAwareMethodMatcher != <span class="keyword">null</span> &amp;&amp; </div><div class="line">           introductionAwareMethodMatcher.matches(method, targetClass, hasIntroductions)) ||</div><div class="line">           methodMatcher.matches(method, targetClass)) &#123;</div><div class="line">        <span class="keyword">return</span> <span class="keyword">true</span>;</div><div class="line">      &#125;</div><div class="line">    &#125;</div><div class="line">  &#125;</div><div class="line">  <span class="keyword">return</span> <span class="keyword">false</span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>　　看到这儿整个流程就清晰了：由于我们配置了<code>greetingAdvisor</code>，并且<code>patterns</code>与<code>HelloAction</code>中的<code>helloA</code>和<code>helloB</code>匹配，导致相应的<code>advisor</code>与目标bean（HelloAction）关联了，即<code>getAdvicesAndAdvisorsForBean</code>返回的<code>Interceptors</code>不为<code>DO_NOT_PROXY</code>，于是走了下面的<code>createProxy</code>逻辑，又因为<code>AspectJAwareAdvisorAutoProxyCreator</code>的配置项<code>proxyTargetClass</code>默认是false的，进而为<code>HelloAction</code>创建了JDK动态代理。</p>
+<h2 id="三、最终版"><a href="#三、最终版" class="headerlink" title="三、最终版"></a>三、最终版</h2><p>　　经过上述两次错误分析，我们得知以下几点：</p>
+<blockquote>
+<p>1、首先使用CGLib的方式为HelloAction创建代理是必须的，因为我们所要代理的方法是HelloAction自定义的，且不在其所实现接口的方法列表中，面向接口的JDK动态代理行不通；</p>
+<p>2、只要当前应用中别的地方事先配置了<code>&lt;aop:config&gt;</code>（比如最常用的声明式事务），就无法使用<code>BeanNameAutoProxyCreator</code>的方式为HelloAction创建CGLib代理！因为要为目标类的部分方法生成代理，其配置项<code>interceptorNames</code>就只能用<code>Advisor</code>而非普通的bean名称，而<code>Advisor</code>又会被<code>AspectJAwareAdvisorAutoProxyCreator</code>扫描到，最终导致上述二次代理的问题。</p>
+</blockquote>
+<p>　　最终去掉了<code>BeanNameAutoProxyCreator</code>和<code>greetingAdvisor</code>，改为<code>&lt;aop:config&gt;</code>通过指定<code>proxy-target-class</code>为true强制<code>AspectJAwareAdvisorAutoProxyCreator</code>走CGLib代理，配置如下：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">aop:config</span> <span class="attr">proxy-target-class</span>=<span class="string">"true"</span>&gt;</span> <span class="tag">&lt;<span class="name">aop:pointcut</span> <span class="attr">id</span>=<span class="string">"pt-greet"</span> <span class="attr">expression</span>=<span class="string">"( execution(* org.sherlockyb.blogdemos.struts2.web.action.HelloAction.helloA(..)) or execution(* org.sherlockyb.blogdemos.struts2.web.action.HelloAction.helloB(..)) )"</span>/&gt;</span></div><div class="line">  <span class="tag">&lt;<span class="name">aop:advisor</span> <span class="attr">id</span>=<span class="string">"ad-greet"</span> <span class="attr">advice-ref</span>=<span class="string">"greetingInterceptor"</span> <span class="attr">pointcut-ref</span>=<span class="string">"pt-greet"</span>/&gt;</span> </div><div class="line"><span class="tag">&lt;/<span class="name">aop:config</span>&gt;</span></div></pre></td></tr></table></figure>
+<p>　　最后的拦截效果如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line">[INFO] <span class="number">2017</span>-<span class="number">12</span>-<span class="number">14</span> <span class="number">23</span>:<span class="number">44</span>:<span class="number">03</span>,<span class="number">972</span> [resin-port-<span class="number">80</span>-<span class="number">51</span>] struts2.aop.GreetingMethodInterceptor (GreetingMethodInterceptor.java:<span class="number">33</span>) -greeting before invocation...</div><div class="line">say: hello A</div><div class="line">[INFO] <span class="number">2017</span>-<span class="number">12</span>-<span class="number">14</span> <span class="number">23</span>:<span class="number">44</span>:<span class="number">08</span>,<span class="number">234</span> [resin-port-<span class="number">80</span>-<span class="number">51</span>] struts2.aop.GreetingMethodInterceptor (GreetingMethodInterceptor.java:<span class="number">35</span>) -greeting after invocation</div></pre></td></tr></table></figure>
+<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><h2 id="一、JDK与CGLib动态代理的本质区别"><a href="#一、JDK与CGLib动态代理的本质区别" class="headerlink" title="一、JDK与CGLib动态代理的本质区别"></a>一、JDK与CGLib动态代理的本质区别</h2><h3 id="1-1-JDK动态代理"><a href="#1-1-JDK动态代理" class="headerlink" title="1.1 JDK动态代理"></a>1.1 JDK动态代理</h3><p>　　<strong>JDK动态代理是面向接口</strong>的，即被代理的目标类必须实现接口，且最终只会为目标类所实现的所有接口中的方法生成代理方法，对于目标类中包含的但是非接口中的方法，是不会生成对应的代理方法，methodA和methodB就是例子，这是由JDK代理的实现机制所决定了的：通过继承自Proxy类，实现目标类所实现的接口来生成代理类。</p>
+<p>　　JDK动态代理生成的代理类，以$Proxy开头，后面的计数数字表示当前生成的是第几个代理类。且<strong>代理类是final的</strong>，不可被继承。</p>
+<h3 id="1-2-CGLib动态代理"><a href="#1-2-CGLib动态代理" class="headerlink" title="1.2 CGLib动态代理"></a>1.2 CGLib动态代理</h3><p>　　而CGLib则是通过继承目标类，得到其子类的方式生成代理，而final类是不能被继承的，因为CGLib无法为final类生成代理。</p>
+<p>　　CGLib代理生成的代理类含有<code>$$</code>，比如<code>HelloAction$$EnhancerByCGLIB$$ff7d443b</code>。</p>
+<h2 id="二、对aop的不熟练所引发的问题"><a href="#二、对aop的不熟练所引发的问题" class="headerlink" title="二、对aop的不熟练所引发的问题"></a>二、对aop的不熟练所引发的问题</h2><p>　　对aop的不熟练，使得我们在用的时候，往往就容易忽视了一些细节，如当前采用的动态代理是JDK的还是CGLib的，默认选择是什么？都有哪些配置项，配置项的默认值，以及各配置项对最终生成代理结果的影响如何？后续将会针对spring aop单独另开博文详解，尽情期待~</p>
+<h2 id="三、Struts2的Interceptor机制原理"><a href="#三、Struts2的Interceptor机制原理" class="headerlink" title="三、Struts2的Interceptor机制原理"></a>三、Struts2的Interceptor机制原理</h2><p>　　Struts2的Interceptor机制是属于aop功能，按理说用常规的动态代理就可实现。但是由<a href="#一、初体验">初体验</a> 小节中debug过程可知，它并没有基于常规的动态字节码技术如JDK动态代理、CGLib动态代理等，而是通过责任链模式和迭代的巧妙结合，实现了aop的功能，有兴趣的话也可研究一下。</p>
+
+          
+        
+      
+    </div>
+
+    <div>
+      
+    </div>
+
+    <div>
+      
+    </div>
+
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+      
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+
+
+    
+      
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal " itemscope itemtype="http://schema.org/Article">
   <link itemprop="mainEntityOfPage" href="http://www.yangbing.club/2017/07/15/solution-for-jar-conflicts/">
 
   <span style="display:none" itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -1177,7 +1418,7 @@
           
             <div class="site-state-item site-state-posts">
               <a href="/archives">
-                <span class="site-state-item-count">5</span>
+                <span class="site-state-item-count">6</span>
                 <span class="site-state-item-name">日志</span>
               </a>
             </div>
@@ -1186,7 +1427,7 @@
           
             <div class="site-state-item site-state-categories">
               <a href="/categories">
-                <span class="site-state-item-count">4</span>
+                <span class="site-state-item-count">5</span>
                 <span class="site-state-item-name">分类</span>
               </a>
             </div>
@@ -1195,7 +1436,7 @@
           
             <div class="site-state-item site-state-tags">
               <a href="/tags">
-                <span class="site-state-item-count">8</span>
+                <span class="site-state-item-count">12</span>
                 <span class="site-state-item-name">标签</span>
               </a>
             </div>
