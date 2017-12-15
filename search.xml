@@ -83,7 +83,8 @@
 <p>　　JDK动态代理生成的代理类，以$Proxy开头，后面的计数数字表示当前生成的是第几个代理类。且<strong>代理类是final的</strong>，不可被继承。</p>
 <h3 id="1-2-CGLib动态代理"><a href="#1-2-CGLib动态代理" class="headerlink" title="1.2 CGLib动态代理"></a>1.2 CGLib动态代理</h3><p>　　而CGLib则是通过继承目标类，得到其子类的方式生成代理，而final类是不能被继承的，因为CGLib无法为final类生成代理。</p>
 <p>　　CGLib代理生成的代理类含有<code>$$</code>，比如<code>HelloAction$$EnhancerByCGLIB$$ff7d443b</code>。</p>
-<h2 id="二、对aop的不熟练所引发的问题"><a href="#二、对aop的不熟练所引发的问题" class="headerlink" title="二、对aop的不熟练所引发的问题"></a>二、对aop的不熟练所引发的问题</h2><p>　　对aop的不熟练，使得我们在用的时候，往往就容易忽视了一些细节，如当前采用的动态代理是JDK的还是CGLib的，默认选择是什么？都有哪些配置项，配置项的默认值，以及各配置项对最终生成代理结果的影响如何？后续将会针对spring aop单独另开博文详解，尽情期待~</p>
+<h2 id="二、对aop的不熟练所引发的问题"><a href="#二、对aop的不熟练所引发的问题" class="headerlink" title="二、对aop的不熟练所引发的问题"></a>二、对aop的不熟练所引发的问题</h2><p>　　对aop的不熟练，使得我们在用的时候，往往就容易忽视了一些细节，如当前采用的动态代理是JDK的还是CGLib的，默认选择是什么？都有哪些配置项，配置项的默认值，以及各配置项对最终生成代理结果的影响如何？当前类是否被多次代理？当出现了多次代理，代理的顺序又是如何？</p>
+<p>　　对于第二次报错，其本质问题是属于<strong>二次代理</strong>的问题。有网友也遇到过类似的问题——<a href="http://www.cnblogs.com/study-everyday/p/7429298.html" target="_blank" rel="external">记一次Spring的aop代理Mybatis的DAO所遇到的问题</a>，只不过是在MyBatis上踩的坑，后续将会针对spring aop单独另开博文详解，尽情期待~</p>
 <h2 id="三、Struts2的Interceptor机制原理"><a href="#三、Struts2的Interceptor机制原理" class="headerlink" title="三、Struts2的Interceptor机制原理"></a>三、Struts2的Interceptor机制原理</h2><p>　　Struts2的Interceptor机制是属于aop功能，按理说用常规的动态代理就可实现。但是由<a href="#一、初体验">初体验</a> 小节中debug过程可知，它并没有基于常规的动态字节码技术如JDK动态代理、CGLib动态代理等，而是通过责任链模式和迭代的巧妙结合，实现了aop的功能，有兴趣的话也可研究一下。</p>
 ]]></content>
       
@@ -452,9 +453,9 @@
         
         <tags>
             
-            <tag> Shell编程 </tag>
-            
             <tag> Linux命令 </tag>
+            
+            <tag> Shell编程 </tag>
             
         </tags>
         
