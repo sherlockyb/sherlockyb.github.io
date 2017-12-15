@@ -100,7 +100,7 @@
 <meta property="og:image" content="http://www.yangbing.club/2017/12/04/how-to-add-monitor-log-for-struts2-actions/debug5.png">
 <meta property="og:image" content="http://www.yangbing.club/2017/12/04/how-to-add-monitor-log-for-struts2-actions/debug6.png">
 <meta property="og:image" content="http://www.yangbing.club/2017/12/04/how-to-add-monitor-log-for-struts2-actions/debug7.png">
-<meta property="og:updated_time" content="2017-12-15T00:24:24.473Z">
+<meta property="og:updated_time" content="2017-12-15T00:46:38.957Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="如何优雅地为Struts2的action加监控日志">
 <meta name="twitter:description" content="好久没写博客啦，一晃竟已有5个月了，实在是惭愧的很，待整理的checklist还是挺多的，努力一一补上！今天这篇博文源于工作中的一个case：为Struts2中的特定action添加监控日志。对Struts2熟悉的童鞋可能会说，这个不就是常规的aop功能吗，直接利用其自带的拦截器（Interceptor）机制就可轻易实现，so easy！但最终笔者并没有这么干，为何呢？后面会说。这期间，笔者也">
@@ -426,6 +426,7 @@
 
       
         <p>　　好久没写博客啦，一晃竟已有5个月了，实在是惭愧的很，待整理的checklist还是挺多的，努力一一补上！今天这篇博文源于工作中的一个case：为Struts2中的特定action添加监控日志。对Struts2熟悉的童鞋可能会说，这个不就是常规的aop功能吗，直接利用其自带的拦截器（Interceptor）机制就可轻易实现，so easy！但最终笔者并没有这么干，为何呢？后面会说。这期间，笔者也走了好几条弯路，皆以失败告终，其中牵涉到aop代理的好一些细节知识点，以及一些常见的aop误区，如果没有这些弯路的尝试，可能都不会注意到它，故记录于此，引以为鉴。</p>
+<a id="more"></a>
 <h1 id="问题背景"><a href="#问题背景" class="headerlink" title="问题背景"></a>问题背景</h1><p>　　最近拿到一个需求：对指定的部分请求增加日志监控，即在方法调用前，做一些统一的业务逻辑判断，对于符合条件的则打印方法名、参数等上下文信息，便于后续统计分析。由于历史原因，当前工程较老，其MVC框架还是基于Struts2的！当然，由于忍受不了Struts2的各种安全漏洞、笨重不堪等问题，该工程的MVC框架也正在向spring MVC迁移。目前的情况是，Struts2和spring MVC并存，而此次所要拦截的请求都属于老的接口，问题就变成如何为Struts2中的action增加日志监控。</p>
 <h1 id="解决方案"><a href="#解决方案" class="headerlink" title="解决方案"></a>解决方案</h1><h2 id="一、初体验"><a href="#一、初体验" class="headerlink" title="一、初体验"></a>一、初体验</h2><p>　　背景中已提到，项目的MVC框架最终会去掉Struts2并完全切换到spring MVC，因此，<strong>为了避免与Struts2过渡耦合</strong>，一开始我就避开了其自带的Interceptor机制，试图用spring aop来解决它，这样就跟MVC框架无关了，后面即便切换到spring MVC，这块也不用再改动。</p>
 <p>　　首先想到了spring中的自动代理创建器，为了与现有的代码保持一致，选用了基于Bean名称匹配的BeanNameAutoProxyCreator，为了讲解的方便，笔者写了个简单的demo，相关类定义如下：</p>
