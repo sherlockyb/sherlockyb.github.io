@@ -4,6 +4,39 @@
   
     
     <entry>
+      <title><![CDATA[谈谈ali与Google的Java开发规范]]></title>
+      <url>http://www.yangbing.club/2017/12/30/talk-about-ali-and-google-s-java-developing-guideline/</url>
+      <content type="html"><![CDATA[<p>　　无规矩不成方圆，编码规范就如同协议，有了Http、TCP等各种协议，计算机之间才能有效地通信，同样的，有了一致的编码规范，程序员之间才能有效地合作。道理大家都懂，可现实中的我们，经常一边吐槽别人的代码，一边写着被吐槽的代码，究其根本，就是缺乏遵从编码规范的意识！多年前，Google发布<code>Google Java Style</code>来定义Java编码时应遵循的规范；今年年初阿里则发布<code>阿里巴巴Java 开发手册</code>，并随后迭代了多个版本，直至9月份又发布了pdf终极版。这两大互联网巨头的初衷，都是希望能够统一标准，使业界编码达到一致性，提升沟通和研发效率，这对于我们码农无疑是很赞的一笔福利呀。笔者将两份规范都通读了一遍，其中列举的不少细则在平时的编码中都基本用过了，不过还是有不少新奇的收获，忍不住记录在此，供日后念念不忘~</p>
+<h1 id="Java开发规范总览"><a href="#Java开发规范总览" class="headerlink" title="Java开发规范总览"></a>Java开发规范总览</h1><h2 id="一、Google-Java-Style"><a href="#一、Google-Java-Style" class="headerlink" title="一、Google Java Style"></a>一、Google Java Style</h2><p>　　Google的java开发规范主要分为6大部分：源文件基本规范、源文件结构、代码格式、命名、编程实践和Javadoc，各部分概要如下：</p>
+<blockquote>
+<p>1、源文件基本规范（source file basics）：文件名、文件编码、特殊字符的规范要求<br>2、源文件结构（source file structure）：版权许可信息、package、import、类申明的规约<br>3、代码格式（formatting）：大括号、缩进、换行、列长限制、空格、括号、枚举、数组、switch语句、注4、解、注释、和修饰符等格式要求<br>5、命名（Naming）：标识符、包名、类名、方法名、常量名、非常量成员名、参数名、局部变量的命名规范<br>6、编程实践（Programming Practices）：@override、异常捕获、静态成员、Finalizers等用法规约</p>
+</blockquote>
+<h2 id="二、阿里巴巴Java开发手册"><a href="#二、阿里巴巴Java开发手册" class="headerlink" title="二、阿里巴巴Java开发手册"></a>二、阿里巴巴Java开发手册</h2><p>　　阿里的Java开发手册相对于前者更上一层楼，它除了基本的编程风格的规约外，还给出了日志、单元测试、安全、MySQL、工程结构等代码之外的规约，据说是阿里近万名开发同学集体智慧的结晶，相当了得，还是挺值得借鉴一下的。各部分概要如下：</p>
+<blockquote>
+<p>1、编程规约：命名风格、常量、代码格式、OOP、集合处理、并发、控制语句、注释等<br>2、异常日志：异常处理、日志的命名、保留时间、输出级别、记录信息等<br>3、单元测试：AIR原则（Automatic,Independent,Repeatable）、单侧的代码目录、目标，单侧的写法，即BCDE原则（Border,Correct,Design,Error）<br>4、安全规约：权限校验、数据脱敏、参数有效校验、CSRF安全过滤、防重放限制、风控策略等<br>5、MySQL数据库：建表、索引、SQL语句、ORM映射等<br>6、工程结构：应用分层、二方库依赖（坐标命名、接口约定、pom配置）、服务器端各项配置（TCP超时、句柄数、JVM参数等）</p>
+</blockquote>
+<h1 id="熟知的规范"><a href="#熟知的规范" class="headerlink" title="熟知的规范"></a>熟知的规范</h1><p>　　对于大家已经烂熟于心并已习惯遵守的一些编码规范，比如类名、常量的命名、数组的定义等，就不在此一一列出了，只想就一些平时编码中较容易个性化，并可能会存在争议的规范进行一番探讨。为了便于说明，用<strong>G</strong>表示规范出自于<code>Google Java Style</code>，<strong>A</strong>表示规范出自于<code>阿里巴巴Java开发手册</code>。</p>
+<blockquote>
+<p>【G】文件编码：UTF-8，看似简单的一个编码约定，在实际开发过程中却经常出现不一致，由于我们是中文操作系统，系统编码是GBK。当两个协作的开发人员IDE，一个采用系统默认编码，一个设置为UTF-8，那么二人看对方写的中文注释就各自都是乱码了，很尴尬。</p>
+</blockquote>
+<h1 id="，新奇的收获"><a href="#，新奇的收获" class="headerlink" title="，新奇的收获"></a>，新奇的收获</h1>]]></content>
+      
+        <categories>
+            
+            <category> java </category>
+            
+        </categories>
+        
+        
+        <tags>
+            
+            <tag> 代码规范 </tag>
+            
+        </tags>
+        
+    </entry>
+    
+    <entry>
       <title><![CDATA[如何优雅地为Struts2的action加监控日志]]></title>
       <url>http://www.yangbing.club/2017/12/04/how-to-add-monitor-log-for-struts2-actions/</url>
       <content type="html"><![CDATA[<p>　　好久没写博客啦，一晃竟已有5个月了，实在是惭愧的很，待整理的checklist还是挺多的，努力一一补上！今天这篇博文源于工作中的一个case：为Struts2中的特定action添加监控日志。对Struts2熟悉的童鞋可能会说，这个不就是常规的aop功能吗，直接利用其自带的拦截器（Interceptor）机制就可轻易实现，so easy！但最终笔者并没有这么干，为何呢？后面会说。这期间，笔者也走了好几条弯路，皆以失败告终，其中牵涉到aop代理的好一些细节知识点，以及一些常见的aop误区，如果没有这些弯路的尝试，可能都不会注意到它，故记录于此，引以为鉴。</p>
@@ -453,9 +486,9 @@
         
         <tags>
             
-            <tag> Linux命令 </tag>
-            
             <tag> Shell编程 </tag>
+            
+            <tag> Linux命令 </tag>
             
         </tags>
         
