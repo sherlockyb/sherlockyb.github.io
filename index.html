@@ -297,6 +297,233 @@
   
 
   <article class="post post-type-normal " itemscope itemtype="http://schema.org/Article">
+  <link itemprop="mainEntityOfPage" href="http://www.yangbing.club/2018/04/15/talk-about-java-class-lifecycle/">
+
+  <span style="display:none" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <meta itemprop="name" content="杨冰">
+    <meta itemprop="description" content="">
+    <meta itemprop="image" content="/images/me.jpg">
+  </span>
+
+  <span style="display:none" itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+    <meta itemprop="name" content="小冰的个人博客">
+    <span style="display:none" itemprop="logo" itemscope itemtype="http://schema.org/ImageObject">
+      <img style="display:none;" itemprop="url image" alt="小冰的个人博客" src="">
+    </span>
+  </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">
+            
+            
+              
+                
+                <a class="post-title-link" href="/2018/04/15/talk-about-java-class-lifecycle/" itemprop="url">
+                  JVM系列[1]-Java类的生命周期
+                </a>
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2018-04-15T17:44:59+08:00">
+                2018-04-15
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2018/04/15/talk-about-java-class-lifecycle/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2018/04/15/talk-about-java-class-lifecycle/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2018/04/15/talk-about-java-class-lifecycle/" class="leancloud_visitors" data-flag-title="JVM系列[1]-Java类的生命周期">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">阅读次数 </span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          
+            <p>原本是想写一篇关于Java类加载机制的博文，后来发现这个主题有点大，其中涉及的细节点太多，一篇博文，三言两语恐怕无法讲明白，于是乎决定从整体到局部，先来谈谈类的生命周期，从整体把握一个类从“出生”到“凋亡”的过程，其中涉及了类加载、使用、卸载等各个阶段，有了整体的认知后，再深入细节并结合具体实例，探讨加载原理、类加载器等相关知识。今天就让博主带领你开启第一段旅程：类的生命周期详解。</p>
+<h1 id="类的生命周期"><a href="#类的生命周期" class="headerlink" title="类的生命周期"></a>类的生命周期</h1><p>类的生命周期是指一个class从加载到内存直至卸载出内存的过程，共包含<strong>加载</strong>（Loading）、<strong>验证</strong>（Verification）、<strong>准备</strong>（Preparation）、<strong>解析</strong>（Resolution）、<strong>初始化</strong>（Initialization）、<strong>使用</strong>（Using）和<strong>卸载</strong>（Unloading）7个阶段，如下图所示：</p>
+<p><img src="/2018/04/15/talk-about-java-class-lifecycle/class lifeCycle.png" alt="Java类的生命周期"></p>
+<p>其中验证、准备、解析三个阶段统称为<strong>连接</strong>（Linking），而加载、连接、初始化又可以统称为<strong>类加载的过程</strong>，所以我们有时又可以称类的生命周期包含加载、连接、初始化、使用和卸载这5个阶段，或者是类加载、使用、卸载这3个阶段。</p>
+<p>回到上图，加载、验证、准备、初始化和卸载这5个阶段的<strong>开始顺序</strong>是确定的，如图中箭头所示。之所以强调“开始顺序”，是因为这里的先后顺序仅仅是各阶段开始时间的顺序，而不是进行或完成的顺序，这些阶段<strong>通常是相互交叉地混合式进行的</strong>。比如加载和验证，并不是说非要等到加载完成之后，才开始验证阶段，在加载的阶段中，会穿插各种检验动作，否则对于连格式都不符合的字节流，又怎能正确解析出其中的静态数据结构从而转化为方法区中的数据结构呢？对于解析阶段，<strong>其开始时间则比较特殊</strong>，既可能在加载阶段就开始（对常量池中的符号引用的解析），也可能在初始化阶段之后才开始（支持Java语言的动态绑定）。</p>
+<p>下面我们就来看看各个阶段都大致做哪些事情。</p>
+<h2 id="一、类加载的过程"><a href="#一、类加载的过程" class="headerlink" title="一、类加载的过程"></a>一、类加载的过程</h2><p>类加载的过程包含<strong>加载</strong>、<strong>连接</strong>和<strong>初始化</strong>三个阶段。</p>
+<h3 id="1-1-加载"><a href="#1-1-加载" class="headerlink" title="1.1 加载"></a>1.1 加载</h3><p>加载是类加载过程的第一阶段，此时虚拟机将查找并加载类的二进制数据，具体分为三个步骤：</p>
+<ul>
+<li>通过一个类的全限定名来获取定义此类的二进制字节流。</li>
+<li>将这个字节流所代表的静态存储结构转化为方法区的运行时数据结构。</li>
+<li>在内存中生成一个代表此类的<strong>java.lang.class</strong>对象，作为对方法区中此类的各种数据的访问入口。</li>
+</ul>
+<p>这三条属于虚拟机规范的内容，只指明了做什么，具体实现交由虚拟机实现自行安排，这就给了虚拟机实现和具体应用足够的灵活度。对于第一条，并未指明定义类的二进制字节流的存储形式（class文件、ZIP包）、来源（本地文件系统、内存或网络）以及获取方式（既可以从已有静态资源读取也可动态生成），因而就有了如下的多样可能性：</p>
+<ul>
+<li><strong>从ZIP包中读取</strong>，这是后来支持类加载器可从<strong>JAR、EAR、WAR</strong>等格式文件中加载class的基础。</li>
+<li><strong>从网络中获取字节流</strong>，我们熟知的Applet是这种场景的典型应用。</li>
+<li><strong>程序动态生成字节流</strong>，这种场景应用最多的就是动态代理，通过字节码技术动态生成代理类的二进制字节流。</li>
+<li><strong>由除了Java源文件之外的其他文件编译而成</strong>，如JSP文件、Scala源文件等。</li>
+</ul>
+<p>对于第三条中所说的“内存”，虚拟机规范并没有明确规定是在Java堆还是方法区中，对于我们最为熟悉的<strong>HotSpot</strong>虚拟机，是存放在Java堆的永久代中。实际上永久代是<strong>HotSpot</strong>虚拟机特有的，是它对虚拟机规范中方法区概念的具体实现（<strong>JDK1.7及以下</strong>），对于其他虚拟机（如<strong>IBM J9</strong>）是不存在永久代一说的，关于方法区和永久代的关系超出本博文的谈论范畴了，点到为止。</p>
+<p>加载阶段完成后，原本定义类的二进制字节流就按照虚拟机所需的格式存储在方法区中，这里的存储格式依具体的虚拟机实现而定，各有差异，虚拟机规范并未规定此区域的具体数据结构。</p>
+<p>关于<strong>加载阶段的注意点</strong>：</p>
+<ol>
+<li>数组类的加载比较特殊，它本身并不通过类加载器创建，而是由Java虚拟机直接创建，但数组类的元素类型（去掉所有维度后的类型，比如A[][]的元素类型，就是A）是由类加载器加载的。举例，对于类型<code>org.sherlockyb.test.HelloWorld</code>，定义一维数组类<code>HelloWorld[] hws = new HelloWorld[8]</code>，虚拟机会直接创建名为“[Lorg.sherlockyb.test.HelloWorld”的数组类，并对其进行初始化。</li>
+</ol>
+<h4 id="类加载器"><a href="#类加载器" class="headerlink" title="类加载器"></a>类加载器</h4><p>上一节中加载阶段的第一步骤——“通过一个类的全限定名来获取定义此类的二进制字节流”，就是类加载器所做的唯一工作，类加载器是Java技术体系中的重要基石，它在类层次划分、OSGi、热部署、代码加密等领域扮演着重要角色，关于它我们暂且不做细致介绍，后面会有单独博文深入探讨之。</p>
+<h4 id="加载时机"><a href="#加载时机" class="headerlink" title="加载时机"></a>加载时机</h4><p>虚拟机规范并未强制规定加载阶段具体什么时候开始，由虚拟机实现自由把握。就我们所熟知的<strong>HotSpot</strong>虚拟机来说，有两种情况：</p>
+<ul>
+<li><strong>预加载</strong>。虚拟机在启动时会预先加载rt.jar中的class文件，其中包括<strong>java.lang.*、java.util.*、java.io.*</strong>等运行时常用的类。</li>
+<li><strong>运行时加载</strong>。当虚拟机在运行过程中需要某个类时，如果该类的class未被加载则加载之。</li>
+</ul>
+<h3 id="1-2-连接"><a href="#1-2-连接" class="headerlink" title="1.2 连接"></a>1.2 连接</h3><p>连接可细分为三个阶段：验证、准备和解析。</p>
+<h4 id="验证"><a href="#验证" class="headerlink" title="验证"></a>验证</h4><p>连接的第一个阶段，确保从class文件中所加载的字节流符合当前虚拟机的要求，且<strong>不会危害虚拟机自身的安全</strong>。该阶段会依次进行如下校验：</p>
+<ul>
+<li><strong>文件格式校验</strong>：判断当前字节流是否符合<strong>class文件格式</strong>的规范。如是否以class文件的魔数<strong>oxCAFEBABE</strong>开头、主次版本号是否在当前虚拟机的处理范围之内、常量池中常量的类型是否合法等等。校验的目的是保证字节流能正确地解析并存储于方法区内，通过验证后，会在方法区中存储，后面的校验动作都是基于方法区的存储结构进行，不再直接操作字节流。</li>
+<li><strong>元数据校验</strong>：语义分析，判断其描述的信息是否符合Java语言的规范要求。如该类除了<strong>java.lang.Object</strong>之外，是否有其他父类；该类的父类是否继承了不允许被继承的final类等</li>
+<li><strong>字节码验证</strong>：通过数据流和控制流分析，判断程序语义是否合法、符合逻辑。如保证跳转指令不会跳转到方法体以外的字节码指令上、方法体中的类型转换是有效的等。</li>
+<li><strong>符号引用校验</strong>：发生在解析阶段将符号引用转为直接引用的时候，确保解析动作能正确执行。如符号引用中通过字符串描述的全限定名是否能找到对应类。</li>
+</ul>
+<p>从上面可以看出，验证阶段非常重要，关乎虚拟机的安全，<strong>但它并不是必须的</strong>，它对程序运行期没有影响，如果所引用的类已被反复使用和验证过，那么可以考虑采用<code>-Xverifynone</code>参数来关闭大部分的类验证措施，以缩短虚拟机类加载的时间。通常来讲，应用所加载的class文件都是由我们本地或服务器的JDK编译通过的，我们都确定它是符合虚拟机要求的，对于这类class文件其实并不需要验证，主要是像从网络加载的class字节流或是通过动态字节码技术生成的字节流，出于安全的考虑，是必须要经过严格验证的。</p>
+<h4 id="准备"><a href="#准备" class="headerlink" title="准备"></a>准备</h4><p>准备阶段做的唯一一件事就是为类的静态变量分配内存，并将其初始化为默认值。注意这里的初始化和后面要讲的“初始化阶段”是不同的，容易混淆。<strong>这些内存都在方法区中分配</strong>。几点注意项：</p>
+<ul>
+<li>对于初始化为默认值这一点，有两个角度的理解：从Java应用层面讲，会为不同的类型设置对应的<strong>零值</strong>，如对于int、long、byte等整数对应就是0，对于float、double等浮点数则是0.0，而对于引用类型则是null，有个零值映射表，具体就不在这一一列举了；从JVM层面，实际上就是分配了一块全0值的内存，只是不同的数据类型对于0值有不同的解释含义，这是Java编译器自动为我们做的。</li>
+<li>如果类的静态变量是<strong>final</strong>的，即它的字段属性表中存在<strong>ConstantValue</strong>属性，那么在准备阶段就会被初始化为程序指定的值，比如对于<code>public static final int len = 5</code>，在准备阶段<code>len</code>的值已经被设置为5了。实际上对于final的类变量，在编译时就已经将其结果放入了调用它的类的常量池中，这种类变量的访问并不会触发其所属类的初始化阶段。</li>
+</ul>
+<h4 id="解析"><a href="#解析" class="headerlink" title="解析"></a>解析</h4><p>该阶段把类在常量池中的符号引用转为直接引用。符号引用就是一组用来描述目标的字面量，说白了就是静态的占位符，与内存布局无关，而直接引用则是运行时的，是指内存中直接指向目标的指针、相对偏移量或间接定位到目标的句柄。解析工作主要针对类或接口、字段、类方法、接口方法、方法类型、方法句柄和调用限定符这7类符号引用，将其替换为直接引用。</p>
+<p>虚拟机规范规定，在执行<strong>anewarray、checkcast、getfield、getstatic、instanceof、invokedynamic、invokeinterface、invokespecial、invokestatic、invokevirtual、ldc、ldc_w、multianewarray、new、putfield</strong>和<strong>putstatic</strong>这16个用于操作符号引用的字节码指令之前，必须先对符号引用进行解析。至于具体时间并未要求，交由虚拟机实现自行决定：在类被加载时就对常量池中的符号引用进行解析（静态指令，除invokedynamic之外的），或是等到一个符号引用将要被使用前才去解析（动态指令：invokedynamic，为了支持动态绑定）。</p>
+<h3 id="1-3-初始化"><a href="#1-3-初始化" class="headerlink" title="1.3 初始化"></a>1.3 初始化</h3><p>为类的静态变量赋予程序设定的初始值。在Java中对类变量设定初始值有两种方式：声明类变量时指定初始值和静态代码块为静态变量赋值。我们来看下类的初始化步骤：</p>
+<ul>
+<li>若该类还没有被加载和连接，则先加载并连接该类</li>
+<li>若该类的直接父类没有被初始化，则先初始化其父类（接口没有此规则）</li>
+<li>若该类有初始化语句（赋值语句和静态代码块），则按照代码中申明的顺序依次执行初始化语句</li>
+</ul>
+<p>我们可以从字节码层面获知上述初始化步骤的原理，</p>
+<blockquote>
+<p>编译器在编译Java源文件时，自动收集类中所有类变量的赋值操作和静态语句块中的语句（<strong>按照源码中声明先后顺序</strong>），将其合并产生<strong>\<clinit\></clinit\></strong>方法，即<strong>类构造器</strong>（注意与实例构造器<strong>\<init\></init\></strong>相区分）。该方法的执行过程遵循以下规则：</p>
+</blockquote>
+<ul>
+<li>虚拟机保证在子类的<strong>\<clinit\></clinit\></strong>方法执行之前，会先执行父类的<strong>\<clinit\></clinit\></strong>方法（<strong>若父类是接口，则忽略不执行</strong>），依次递归。</li>
+<li><strong>\<clinit\></clinit\></strong>方法并不是必须的。若一个类或接口中既没有类变量的赋值操作也没有静态语句块（<strong>接口没有此项</strong>），编译器可以不为它生成<strong>\<clinit\></clinit\></strong>方法。</li>
+<li>虚拟机会保证<strong>\<clinit\></clinit\></strong>方法在多线程环境中被正确地加锁、同步，确保同一时刻只会有一个线程去执行该方法。这也是单例模式其中一种实现方式（定义静态实例）的依据。</li>
+</ul>
+<h4 id="初始化时机"><a href="#初始化时机" class="headerlink" title="初始化时机"></a>初始化时机</h4><p>虚拟机规范严格规定，当发生对一个类的<strong>主动引用</strong>时，会立即触发类的初始化阶段。<strong>主动引用</strong>有且仅有以下5种情况：</p>
+<ul>
+<li>遇到<strong>new</strong>、<strong>getstatic</strong>、<strong>putstatic</strong>或<strong>invokestatic</strong>这4条字节码时，如果类没有被初始化，则先触发其初始化。从Java代码层面来讲，就是使用<strong>new</strong>关键字实例化对象、读取或设置类的静态字段（<strong>final</strong>修饰的常量字段除外）、调用静态方法的时候。</li>
+<li>使用<strong>java.lang.reflect</strong>包的方法对类进行反射调用时，如Class.forName(…)。</li>
+<li>当初始化一个类时，若其父类还未初始化，则先触发其父类的初始化（接口无此规则）。</li>
+<li>当虚拟机启动时，用户需指定一个主类（包含main方法），虚拟机会先初始化该类。</li>
+<li>对于<strong>REF_getStatic、REF_putStatic、REF_invokeStatic</strong>方法句柄（使用JDK1.7的动态特性），若其对应的类还未初始化，则先触发其初始化。</li>
+</ul>
+<p>除此之外，其他所有引用类的方式都属于<strong>被动引用</strong>，不会触发初始化。</p>
+<h2 id="二、类的使用"><a href="#二、类的使用" class="headerlink" title="二、类的使用"></a>二、类的使用</h2><p>包括主动引用和被动引用，前者在上节已有说明，我们来列举几个被动引用的实例：</p>
+<ul>
+<li>通过子类调用父类的静态字段，不会触发子类初始化。</li>
+<li>通过数组定义来引用类，不会触发该类的初始化。例如<code>A[] arr = new A[8]</code> ，并不会触发A的初始化。</li>
+<li>在类A中调用B的常量字段，不会触发B的初始化。因为此常量字段在编译阶段会存入调用类A的常量池中，本质上并没有直接引用到定义类B。</li>
+</ul>
+<h2 id="三、类的卸载"><a href="#三、类的卸载" class="headerlink" title="三、类的卸载"></a>三、类的卸载</h2><p>当一个类被判定为无用类时，才可以被卸载。条件苛刻，需要同时满足如下条件：</p>
+<ul>
+<li>类的所有实例都已被回收。</li>
+<li>加载该类的ClassLoader已被回收。</li>
+<li>该类对应的<strong>java.lang.Class</strong>对象没有在任何地方被引用。</li>
+</ul>
+<p>对于满足上述3个条件的无用类，虚拟机可以对其回收，但并不是必然的，是否回收可通过<code>-Xnoclassgc</code>参数控制。<strong>注意</strong>：在大量使用反射、动态代理等字节码框架、动态生成JSP以及OSGi这类频繁自定义ClassLoader的场景都需要虚拟机具备类卸载的功能，以保证永久代（特指HotSpot虚拟机）不会溢出。</p>
+<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><p>终于算是“走马观花”般地把Java类的生命周期过了一遍，相信当再提起类的生命周期时，大家脑海里就会立马浮现出类生命周期的大纲，都有哪些阶段，每个阶段都大致做些什么事情，都有些什么注意点，这样，本博文的目的就达到了！掌握了全局之后，接下来就是细节的探讨，比如像验证阶段中的字节码验证，实际是非常复杂的，虚拟机专门为此做了诸多优化；再比如解析阶段，7类符号引用各自不同的解析细节又是什么，等等之类。之后，笔者将会单独另起博文，针对类加载器、解析阶段等进行详细分析，敬请期待。</p>
+
+          
+        
+      
+    </div>
+
+    <div>
+      
+    </div>
+
+    <div>
+      
+    </div>
+
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+      
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+
+
+    
+      
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal " itemscope itemtype="http://schema.org/Article">
   <link itemprop="mainEntityOfPage" href="http://www.yangbing.club/2018/01/13/two-long-types-can-not-use-left-parenthesis-or-right-parenthesis-to-compare-with-each-other-directly-No-they-can/">
 
   <span style="display:none" itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -1685,7 +1912,7 @@
           
             <div class="site-state-item site-state-posts">
               <a href="/archives">
-                <span class="site-state-item-count">8</span>
+                <span class="site-state-item-count">9</span>
                 <span class="site-state-item-name">日志</span>
               </a>
             </div>
@@ -1703,7 +1930,7 @@
           
             <div class="site-state-item site-state-tags">
               <a href="/tags">
-                <span class="site-state-item-count">15</span>
+                <span class="site-state-item-count">17</span>
                 <span class="site-state-item-name">标签</span>
               </a>
             </div>
