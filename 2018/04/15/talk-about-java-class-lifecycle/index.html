@@ -87,20 +87,17 @@
 
 
 
-<meta name="description" content="原本是想写一篇关于Java类加载机制的博文，后来发现这个主题有点大，其中涉及的细节点太多，一篇博文，三言两语恐怕无法讲明白，于是乎决定从整体到局部，先来谈谈类的生命周期，从整体把握一个类从“出生”到“凋亡”的过程，其中涉及了类加载、使用、卸载等各个阶段，有了整体的认知后，再深入细节并结合具体实例，探讨加载原理、类加载器等相关知识。今天就让博主带领你开启第一段旅程：类的生命周期详解。
-类的生命周期类">
+<meta name="description" content="原本是想写一篇关于Java类加载机制的博文，后来发现这个主题有点大，其中涉及的细节点太多，一篇博文，三言两语恐怕无法讲明白，于是乎决定从整体到局部，先来谈谈类的生命周期，从整体把握一个类从“出生”到“凋亡”的过程，其中涉及了类加载、使用、卸载等各个阶段，有了整体的认知后，再深入细节并结合具体实例，探讨加载原理、类加载器等相关知识。今天就让博主带领你开启第一段旅程：类的生命周期详解。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="JVM系列[1]-Java类的生命周期">
 <meta property="og:url" content="http://www.yangbing.club/2018/04/15/talk-about-java-class-lifecycle/index.html">
 <meta property="og:site_name" content="小冰的个人博客">
-<meta property="og:description" content="原本是想写一篇关于Java类加载机制的博文，后来发现这个主题有点大，其中涉及的细节点太多，一篇博文，三言两语恐怕无法讲明白，于是乎决定从整体到局部，先来谈谈类的生命周期，从整体把握一个类从“出生”到“凋亡”的过程，其中涉及了类加载、使用、卸载等各个阶段，有了整体的认知后，再深入细节并结合具体实例，探讨加载原理、类加载器等相关知识。今天就让博主带领你开启第一段旅程：类的生命周期详解。
-类的生命周期类">
+<meta property="og:description" content="原本是想写一篇关于Java类加载机制的博文，后来发现这个主题有点大，其中涉及的细节点太多，一篇博文，三言两语恐怕无法讲明白，于是乎决定从整体到局部，先来谈谈类的生命周期，从整体把握一个类从“出生”到“凋亡”的过程，其中涉及了类加载、使用、卸载等各个阶段，有了整体的认知后，再深入细节并结合具体实例，探讨加载原理、类加载器等相关知识。今天就让博主带领你开启第一段旅程：类的生命周期详解。">
 <meta property="og:image" content="http://www.yangbing.club/2018/04/15/talk-about-java-class-lifecycle/class lifeCycle.png">
-<meta property="og:updated_time" content="2018-04-15T03:20:30.904Z">
+<meta property="og:updated_time" content="2018-04-15T15:03:37.026Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="JVM系列[1]-Java类的生命周期">
-<meta name="twitter:description" content="原本是想写一篇关于Java类加载机制的博文，后来发现这个主题有点大，其中涉及的细节点太多，一篇博文，三言两语恐怕无法讲明白，于是乎决定从整体到局部，先来谈谈类的生命周期，从整体把握一个类从“出生”到“凋亡”的过程，其中涉及了类加载、使用、卸载等各个阶段，有了整体的认知后，再深入细节并结合具体实例，探讨加载原理、类加载器等相关知识。今天就让博主带领你开启第一段旅程：类的生命周期详解。
-类的生命周期类">
+<meta name="twitter:description" content="原本是想写一篇关于Java类加载机制的博文，后来发现这个主题有点大，其中涉及的细节点太多，一篇博文，三言两语恐怕无法讲明白，于是乎决定从整体到局部，先来谈谈类的生命周期，从整体把握一个类从“出生”到“凋亡”的过程，其中涉及了类加载、使用、卸载等各个阶段，有了整体的认知后，再深入细节并结合具体实例，探讨加载原理、类加载器等相关知识。今天就让博主带领你开启第一段旅程：类的生命周期详解。">
 <meta name="twitter:image" content="http://www.yangbing.club/2018/04/15/talk-about-java-class-lifecycle/class lifeCycle.png">
 
 
@@ -354,6 +351,28 @@
           </span>
 
           
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/java/" itemprop="url" rel="index">
+                    <span itemprop="name">java</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
 
           
             
@@ -401,6 +420,7 @@
 
       
         <p>原本是想写一篇关于Java类加载机制的博文，后来发现这个主题有点大，其中涉及的细节点太多，一篇博文，三言两语恐怕无法讲明白，于是乎决定从整体到局部，先来谈谈类的生命周期，从整体把握一个类从“出生”到“凋亡”的过程，其中涉及了类加载、使用、卸载等各个阶段，有了整体的认知后，再深入细节并结合具体实例，探讨加载原理、类加载器等相关知识。今天就让博主带领你开启第一段旅程：类的生命周期详解。</p>
+<a id="more"></a>
 <h1 id="类的生命周期"><a href="#类的生命周期" class="headerlink" title="类的生命周期"></a>类的生命周期</h1><p>类的生命周期是指一个class从加载到内存直至卸载出内存的过程，共包含<strong>加载</strong>（Loading）、<strong>验证</strong>（Verification）、<strong>准备</strong>（Preparation）、<strong>解析</strong>（Resolution）、<strong>初始化</strong>（Initialization）、<strong>使用</strong>（Using）和<strong>卸载</strong>（Unloading）7个阶段，如下图所示：</p>
 <p><img src="/2018/04/15/talk-about-java-class-lifecycle/class lifeCycle.png" alt="Java类的生命周期"></p>
 <p>其中验证、准备、解析三个阶段统称为<strong>连接</strong>（Linking），而加载、连接、初始化又可以统称为<strong>类加载的过程</strong>，所以我们有时又可以称类的生命周期包含加载、连接、初始化、使用和卸载这5个阶段，或者是类加载、使用、卸载这3个阶段。</p>
