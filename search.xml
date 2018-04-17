@@ -63,12 +63,12 @@
 </ul>
 <p>我们可以从字节码层面获知上述初始化步骤的原理，</p>
 <blockquote>
-<p>编译器在编译Java源文件时，自动收集类中所有类变量的赋值操作和静态语句块中的语句（<strong>按照源码中声明先后顺序</strong>），将其合并产生<strong>\<clinit\></clinit\></strong>方法，即<strong>类构造器</strong>（注意与实例构造器<strong>\<init\></init\></strong>相区分）。该方法的执行过程遵循以下规则：</p>
+<p>编译器在编译Java源文件时，自动收集类中所有类变量的赋值操作和静态语句块中的语句（<strong>按照源码中声明先后顺序</strong>），将其合并产生<strong>&lt;clinit&gt;</strong>方法，即<strong>类构造器</strong>（注意与实例构造器<strong>&lt;init&gt;</strong>相区分）。该方法的执行过程遵循以下规则：</p>
 </blockquote>
 <ul>
-<li>虚拟机保证在子类的<strong>\<clinit\></clinit\></strong>方法执行之前，会先执行父类的<strong>\<clinit\></clinit\></strong>方法（<strong>若父类是接口，则忽略不执行</strong>），依次递归。</li>
-<li><strong>\<clinit\></clinit\></strong>方法并不是必须的。若一个类或接口中既没有类变量的赋值操作也没有静态语句块（<strong>接口没有此项</strong>），编译器可以不为它生成<strong>\<clinit\></clinit\></strong>方法。</li>
-<li>虚拟机会保证<strong>\<clinit\></clinit\></strong>方法在多线程环境中被正确地加锁、同步，确保同一时刻只会有一个线程去执行该方法。这也是单例模式其中一种实现方式（定义静态实例）的依据。</li>
+<li>虚拟机保证在子类的<strong>&lt;clinit&gt;</strong>方法执行之前，会先执行父类的<strong>&lt;clinit&gt;</strong>方法（<strong>若父类是接口，则忽略不执行</strong>），依次递归。</li>
+<li><strong>&lt;clinit&gt;</strong>方法并不是必须的。若一个类或接口中既没有类变量的赋值操作也没有静态语句块（<strong>接口没有此项</strong>），编译器可以不为它生成<strong>&lt;clinit&gt;</strong>方法。</li>
+<li>虚拟机会保证<strong>&lt;clinit&gt;</strong>方法在多线程环境中被正确地加锁、同步，确保同一时刻只会有一个线程去执行该方法。这也是单例模式其中一种实现方式（定义静态实例）的依据。</li>
 </ul>
 <h4 id="初始化时机"><a href="#初始化时机" class="headerlink" title="初始化时机"></a>初始化时机</h4><p>虚拟机规范严格规定，当发生对一个类的<strong>主动引用</strong>时，会立即触发类的初始化阶段。<strong>主动引用</strong>有且仅有以下5种情况：</p>
 <ul>

@@ -94,7 +94,7 @@
 <meta property="og:site_name" content="小冰的个人博客">
 <meta property="og:description" content="原本是想写一篇关于Java类加载机制的博文，后来发现这个主题有点大，其中涉及的细节点太多，一篇博文，三言两语恐怕无法讲明白，于是乎决定从整体到局部，先来谈谈类的生命周期，从整体把握一个类从“出生”到“凋亡”的过程，其中涉及了类加载、使用、卸载等各个阶段，有了整体的认知后，再深入细节并结合具体实例，探讨加载原理、类加载器等相关知识。今天就让博主带领你开启第一段旅程：类的生命周期详解。">
 <meta property="og:image" content="http://www.yangbing.club/2018/04/15/talk-about-java-class-lifecycle/class lifeCycle.png">
-<meta property="og:updated_time" content="2018-04-15T15:03:37.026Z">
+<meta property="og:updated_time" content="2018-04-17T13:21:44.505Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="JVM系列[1]-Java类的生命周期">
 <meta name="twitter:description" content="原本是想写一篇关于Java类加载机制的博文，后来发现这个主题有点大，其中涉及的细节点太多，一篇博文，三言两语恐怕无法讲明白，于是乎决定从整体到局部，先来谈谈类的生命周期，从整体把握一个类从“出生”到“凋亡”的过程，其中涉及了类加载、使用、卸载等各个阶段，有了整体的认知后，再深入细节并结合具体实例，探讨加载原理、类加载器等相关知识。今天就让博主带领你开启第一段旅程：类的生命周期详解。">
@@ -481,12 +481,12 @@
 </ul>
 <p>我们可以从字节码层面获知上述初始化步骤的原理，</p>
 <blockquote>
-<p>编译器在编译Java源文件时，自动收集类中所有类变量的赋值操作和静态语句块中的语句（<strong>按照源码中声明先后顺序</strong>），将其合并产生<strong>\<clinit\></clinit\></strong>方法，即<strong>类构造器</strong>（注意与实例构造器<strong>\<init\></init\></strong>相区分）。该方法的执行过程遵循以下规则：</p>
+<p>编译器在编译Java源文件时，自动收集类中所有类变量的赋值操作和静态语句块中的语句（<strong>按照源码中声明先后顺序</strong>），将其合并产生<strong>&lt;clinit&gt;</strong>方法，即<strong>类构造器</strong>（注意与实例构造器<strong>&lt;init&gt;</strong>相区分）。该方法的执行过程遵循以下规则：</p>
 </blockquote>
 <ul>
-<li>虚拟机保证在子类的<strong>\<clinit\></clinit\></strong>方法执行之前，会先执行父类的<strong>\<clinit\></clinit\></strong>方法（<strong>若父类是接口，则忽略不执行</strong>），依次递归。</li>
-<li><strong>\<clinit\></clinit\></strong>方法并不是必须的。若一个类或接口中既没有类变量的赋值操作也没有静态语句块（<strong>接口没有此项</strong>），编译器可以不为它生成<strong>\<clinit\></clinit\></strong>方法。</li>
-<li>虚拟机会保证<strong>\<clinit\></clinit\></strong>方法在多线程环境中被正确地加锁、同步，确保同一时刻只会有一个线程去执行该方法。这也是单例模式其中一种实现方式（定义静态实例）的依据。</li>
+<li>虚拟机保证在子类的<strong>&lt;clinit&gt;</strong>方法执行之前，会先执行父类的<strong>&lt;clinit&gt;</strong>方法（<strong>若父类是接口，则忽略不执行</strong>），依次递归。</li>
+<li><strong>&lt;clinit&gt;</strong>方法并不是必须的。若一个类或接口中既没有类变量的赋值操作也没有静态语句块（<strong>接口没有此项</strong>），编译器可以不为它生成<strong>&lt;clinit&gt;</strong>方法。</li>
+<li>虚拟机会保证<strong>&lt;clinit&gt;</strong>方法在多线程环境中被正确地加锁、同步，确保同一时刻只会有一个线程去执行该方法。这也是单例模式其中一种实现方式（定义静态实例）的依据。</li>
 </ul>
 <h4 id="初始化时机"><a href="#初始化时机" class="headerlink" title="初始化时机"></a>初始化时机</h4><p>虚拟机规范严格规定，当发生对一个类的<strong>主动引用</strong>时，会立即触发类的初始化阶段。<strong>主动引用</strong>有且仅有以下5种情况：</p>
 <ul>
