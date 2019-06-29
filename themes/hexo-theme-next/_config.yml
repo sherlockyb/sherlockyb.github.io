@@ -232,8 +232,8 @@ post_wordcount:
 # Wechat Subscriber
 wechat_subscriber:
   enabled: true
-  qcode: /images/interdigital.jpg
-  description: 欢迎关注"指尖数据"，更多精彩等你来哦~
+  qcode: /images/sherlockyb.jpg
+  description: Javaer，关注机器学习、NLP方向，定期分享技术干货~
 
 
 
