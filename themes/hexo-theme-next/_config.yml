@@ -136,7 +136,9 @@ font:
 # Value is the target link (E.g. GitHub: https://github.com/iissnan)
 social:
   GitHub: https://github.com/sherlockyb
+  E-Mail: mailto:yb_cswhu@aliyun.com
   Weibo: http://weibo.com/u/2991022344/
+  知乎: https://www.zhihu.com/people/sherlockyb/activities
 
 
 # Social Links Icons
@@ -149,8 +151,10 @@ social_icons:
   # Icon Mappings.
   # KeyMapsToSocalItemKey: NameOfTheIconFromFontAwesome
   GitHub: github
+  E-Mail: envelope
   Twitter: twitter
   Weibo: weibo
+  知乎: snapchat
 
 
 # Sidebar Avatar

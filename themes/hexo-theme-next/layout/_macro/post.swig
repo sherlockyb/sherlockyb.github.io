@@ -320,6 +320,22 @@
           {% endfor %}
         </div>
       {% endif %}
+      
+      {% if not is_index %}
+        <ul class="post-copyright">
+          <li class="post-copyright-author">
+            <strong>本文作者：</strong>sherlockyb
+          </li>
+          <li class="post-copyright-link">
+            <strong>本文链接：</strong><a href="{{ url_for(page.path) }}" title="{{ page.title }}">{{ page.permalink }}</a>
+          </li>
+          <li class="post-copyright-license">
+            <strong>许可协议： </strong>
+            除特殊声明外，本站博文均采用 <a href="http://creativecommons.org/licenses/by-nc-sa/3.0/cn/" rel="external nofollow" target="_blank">CC BY-NC-SA 3.0 CN</a> 许可协议，转载请注明出处！
+          </li>
+</ul>
+{% endif %}
+
 
       {% if not is_index %}
         {% if (theme.vkontakte_api.enable and theme.vkontakte_api.like) or (theme.facebook_sdk.enable and theme.facebook_sdk.like_button) %}
