@@ -174,7 +174,7 @@ protected Class<?> loadClass(String name, boolean resolve)
 
 经典的三层加载器结构：
 
-![three_level_classloaders](jvm-series-java-class-loading-mechanism/classloaders.png)
+![three_level_classloaders](jvm-series-java-class-loading-mechanism/three_level_classloaders.png)
 
 1、**启动类加载器**（或称为引导类加载器）：只负责加载`<JAVA_HOME>/lib`目录中的，或是启动参数`-Xbootclasspath`所指定路径中的**特定名称类库**。该加载器由C++实现，对Java程序不可见，对于自定义加载器，若是未指定parent，则会委派该加载器进行加载。
 
@@ -239,10 +239,8 @@ OSGi（Open Service Gateway Initiative）是OSGi联盟制定的一个基于Java�
 
 OSGi中的每个模块称为Bundle，一个Bundle可以声明它所依赖的Java Package（通过Import-Package描述），也可以声明它允许导出发布的Java Package（通过Export-Package描述）。Bundle之间的依赖关系为平级依赖，Bundle类加载器之间只有规则，没有固定的委派关系。假设存在BundleA、BundleB和BundleC，
 
-> BundleA：声明发布了packageA，依赖了java.*的包
->
-> BundleB：声明依赖了packageA和packageC，同时也依赖了java.*的包
->
+> BundleA：声明发布了packageA，依赖了java.\*的包
+> BundleB：声明依赖了packageA和packageC，同时也依赖了java.\*的包
 > BundleC：声明发布了packageC，依赖了packageA
 
 一个简单的OSGi类加载器架构示例如下：
