@@ -5,6 +5,8 @@ tags:
   - 类加载
   - Tomcat
   - OSGi
+categories:
+- java
 date: 2019-07-07 10:36:36
 categories:
 ---
