@@ -9,11 +9,11 @@ description:
 author: 杨冰
 language: zh-Hans
 timezone:
-avatar: /images/me.jpg
+avatar: /images/me.jpeg
 
 # URL
 ## If your site is put in a subdirectory, set url as 'http://yoursite.com/child' and root as '/child/'
-url: http://www.yangbing.club/
+url: https://www.yangbing.club/
 root: /
 permalink: :year/:month/:day/:title/
 permalink_defaults:

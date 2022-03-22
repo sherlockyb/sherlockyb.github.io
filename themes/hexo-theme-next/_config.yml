@@ -14,7 +14,7 @@ keywords: "Hexo, NexT"
 rss:
 
 # Specify the date when the site was setup
-#since: 2015
+since: 2017
 
 # icon between year and author @Footer
 authoricon: heart
@@ -137,7 +137,7 @@ font:
 social:
   GitHub: https://github.com/sherlockyb
   E-Mail: mailto:yb_cswhu@aliyun.com
-  Weibo: http://weibo.com/u/2991022344/
+  简书: https://www.jianshu.com/u/39bd7cd3d268
   知乎: https://www.zhihu.com/people/sherlockyb/activities
 
 
@@ -152,8 +152,7 @@ social_icons:
   # KeyMapsToSocalItemKey: NameOfTheIconFromFontAwesome
   GitHub: github
   E-Mail: envelope
-  Twitter: twitter
-  Weibo: weibo
+  简书: book
   知乎: snapchat
 
 
@@ -168,7 +167,7 @@ toc:
   enable: true
 
   # Automatically add list number to toc.
-  number: false
+  number: true
 
 
 # Creative Commons 4.0 International License.
@@ -200,7 +199,6 @@ links_title: 友情链接
 links_layout: inline
 links:
   超哥: http://zhenchao.org/
-  阿里中间件: http://jm.taobao.org/
 
 
 # ---------------------------------------------------------------
@@ -230,8 +228,8 @@ post_meta:
 # Dependies: https://github.com/willin/hexo-wordcount
 post_wordcount:
   item_text: false
-  wordcount: false
-  min2read: false
+  wordcount: true
+  min2read: true
 
 # Wechat Subscriber
 wechat_subscriber:
@@ -251,8 +249,8 @@ wechat_subscriber:
 #   enabled: [true/false] - Replace with specific image
 #   image: url-of-image   - Images's url
 custom_logo:
-  enabled: false
-  image:
+  enabled: true
+  image: /images/me.jpeg
 
 
 # Code Highlight theme
