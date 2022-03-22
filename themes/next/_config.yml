@@ -249,8 +249,8 @@ wechat_subscriber:
 #   enabled: [true/false] - Replace with specific image
 #   image: url-of-image   - Images's url
 custom_logo:
-  enabled: true
-  image: /images/me.jpeg
+  enabled: false
+  image:
 
 
 # Code Highlight theme
