@@ -81,3 +81,5 @@ deploy:
   type: git
   repo: https://github.com/sherlockyb/sherlockyb.github.io.git
   branch: master
+  user: sherlockyb
+  email: yb_cswhu@aliyun.com
