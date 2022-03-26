@@ -97,6 +97,10 @@ cd sherlockyb
 npm install hexo
 npm install hexo-deployer-git -save
 
+// 别忘了安装相关依赖的 NodeJS 包，也就是 _config.xml 中用到的一些插件
+npm install hexo-wordcount
+...
+
 // hexo环境配置好后，继续像之前一样
 hexo new post_name
 ...

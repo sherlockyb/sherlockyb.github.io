@@ -15,10 +15,14 @@
     "hexo-generator-search": "^1.0.4",
     "hexo-generator-sitemap": "^1.1.2",
     "hexo-generator-tag": "^0.2.0",
+    "hexo-next-utteranc": "github:theme-next/hexo-next-utteranc",
+    "hexo-related-popular-posts": "^2.0.6",
+    "hexo-related-posts": "^1.5.0",
     "hexo-renderer-ejs": "^0.2.0",
     "hexo-renderer-marked": "^0.2.10",
     "hexo-renderer-stylus": "^0.3.1",
     "hexo-server": "^0.2.2",
+    "hexo-wordcount": "^6.0.1",
     "nvm": "^0.0.4"
   }
 }

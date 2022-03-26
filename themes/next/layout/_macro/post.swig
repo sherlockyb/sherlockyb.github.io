@@ -186,7 +186,7 @@
              </span>
           {% endif %}
 
-          {% if not is_index and theme.busuanzi_count.enable and theme.busuanzi_count.page_pv %}
+          {% if theme.busuanzi_count.enable and theme.busuanzi_count.page_pv %}
             <span class="post-meta-divider">|</span>
             <span class="page-pv">{{ theme.busuanzi_count.page_pv_header }}
             <span class="busuanzi-value" id="busuanzi_value_page_pv" ></span>{{ theme.busuanzi_count.page_pv_footer }}
@@ -219,7 +219,7 @@
                     <span class="post-meta-item-text">{{ __('post.min2read') }}</span>
                   {% endif %}
                     <span title="{{ __('post.min2read') }}" }}">
-                      {{ min2read(post.content) }}
+                      {{ min2read(post.content) }} 分钟
                     </span>
               {% endif %}
             </div>
@@ -311,7 +311,6 @@
       {% endif %}
     </div>
 
-
     <footer class="post-footer">
       {% if post.tags and post.tags.length and not is_index %}
         <div class="post-tags">
@@ -359,6 +358,7 @@
         <div class="post-nav">
           <div class="post-nav-next post-nav-item">
             {% if post.next %}
+              上一篇
               <a href="{{ url_for(post.next.path) }}" rel="next" title="{{ post.next.title }}">
                 <i class="fa fa-chevron-left"></i> {{ post.next.title }}
               </a>
@@ -369,6 +369,7 @@
 
           <div class="post-nav-prev post-nav-item">
             {% if post.prev %}
+              下一篇
               <a href="{{ url_for(post.prev.path) }}" rel="prev" title="{{ post.prev.title }}">
                 {{ post.prev.title }} <i class="fa fa-chevron-right"></i>
               </a>

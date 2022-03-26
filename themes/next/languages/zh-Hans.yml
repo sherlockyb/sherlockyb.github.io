@@ -30,6 +30,8 @@ post:
   read_more: 阅读全文
   untitled: 未命名
   toc_empty: 此文章未包含目录
+  wordcount: 字数
+  min2read: 读完约
 
 page:
   totally: 共有

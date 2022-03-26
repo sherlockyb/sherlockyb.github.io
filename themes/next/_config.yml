@@ -42,7 +42,7 @@ menu:
   archives: /archives
   tags: /tags
   #search: 
-  #sitemap: /sitemap.xml
+  # sitemap: /sitemap.xml
   #commonweal: /404.html
 
 
@@ -227,7 +227,7 @@ post_meta:
 # Post wordcount display settings
 # Dependies: https://github.com/willin/hexo-wordcount
 post_wordcount:
-  item_text: false
+  item_text: true
   wordcount: true
   min2read: true
 
@@ -250,7 +250,7 @@ wechat_subscriber:
 #   image: url-of-image   - Images's url
 custom_logo:
   enabled: false
-  image:
+  image: 
 
 
 # Code Highlight theme
@@ -281,7 +281,7 @@ baidu_analytics: 59fe19f57bfa52fb1144830fa4d7a771
 # duoshuo_shortname: yangbing123
 
 # Disqus
-disqus_shortname: yangbing123
+# disqus_shortname: yangbing123
 
 # Hypercomments
 #hypercomments_id:
@@ -301,8 +301,8 @@ disqus_shortname: yangbing123
 # Available value:
 #    button | slide
 # Warning: Baidu Share does not support https.
-baidushare:
-  type: button
+# baidushare:
+#   type: button
 
 # Share
 #jiathis:
@@ -330,14 +330,15 @@ google_analytics: UA-109259143-1
 # See https://azure.microsoft.com/en-us/services/application-insights/
 # application_insights:
 
-# Make duoshuo show UA
-# user_id must NOT be null when admin_enable is true!
-# you can visit http://dev.duoshuo.com get duoshuo user id.
-duoshuo_info:
-  ua_enable: true
-  admin_enable: false
-  user_id: 0
-  #admin_nickname: Author
+
+# Demo: https://utteranc.es/
+utteranc:
+  enable: true
+  repo: sherlockyb/blog-comments
+  issue-term: title
+  label: question
+  theme: github-dark-orange
+  cdn: https://utteranc.es/client.js
 
 
 # Facebook SDK Support.
@@ -371,7 +372,7 @@ vkontakte_api:
 # Show number of visitors to each article.
 # You can visit https://leancloud.cn get AppID and AppKey.
 leancloud_visitors:
-  enable: true
+  enable: false
   app_id: oMIVymYQ5n0a5gELbekGRsiC-gzGzoHsz
   app_key: BjRfDwq0AUQP40Kx1KVeib3M
 
@@ -382,16 +383,16 @@ busuanzi_count:
   enable: true
   # custom uv span for the whole site
   site_uv: true
-  site_uv_header: <i class="fa fa-user"></i>
-  site_uv_footer:
+  site_uv_header: 你是第
+  site_uv_footer: 个访客哦
   # custom pv span for the whole site
   site_pv: true
-  site_pv_header: <i class="fa fa-eye"></i>
-  site_pv_footer:
+  site_pv_header: 总访问
+  site_pv_footer: 次
   # custom pv span for one page only
   page_pv: true
-  page_pv_header: <i class="fa fa-file-o"></i>
-  page_pv_footer:
+  page_pv_header: <i class="fa fa-eye"></i> 热度
+  page_pv_footer: ℃
 
 
 # Tencent analytics ID
