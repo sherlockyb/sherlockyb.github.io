@@ -11,7 +11,7 @@
     var scriptEle = document.createElement('script');
     scriptEle.src = '{{ theme.utteranc.cdn }}';
     scriptEle.setAttribute('repo', '{{ theme.utteranc.repo }}');
-    scriptEle.setAttribute('issue-term', '{{ theme.utteranc.issue-term }}');
+    scriptEle.setAttribute('issue-term', '{{ theme.utteranc['issue-term'] }}');
     scriptEle.setAttribute('theme', '{{ theme.utteranc.theme }}');
     scriptEle.setAttribute('label', '{{ theme.utteranc.label }}');
     scriptEle.setAttribute('async', !0);
