@@ -28,8 +28,8 @@
       <div id="uyan_frame"></div>
     {% elseif theme.livere_uid %}
       <div id="lv-container" data-id="city" data-uid="{{ theme.livere_uid }}"></div>
-    {% elseif theme.utterance.enable %}
-      <div id="utterance-container"></div>
+    {% elseif theme.utteranc.enable %}
+      <div id="utteranc-container"></div>
     {% endif %}
   </div>
 {% endif %}
