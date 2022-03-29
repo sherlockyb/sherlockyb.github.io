@@ -11,11 +11,15 @@ date: 2022-03-24 22:00:00
 
 <!--more-->
 
-# 开始排查
+![file1](hexo-blog-website-page-blank-or-404/web-site-404.png)
+
+
+
+# 排查和定位
 
 ## github上的线索
 
-发现 Actions 中此次 deploy 触发的 build 和 deploy 均失败了。
+发现 Actions 中此次 hexo deploy 触发的 build 和 deploy 均失败了。
 
 ### build error如下，[detail](https://github.com/sherlockyb/sherlockyb.github.io/runs/5642002288?check_suite_focus=true)
 
@@ -80,11 +84,60 @@ Error: Error: No uploaded artifact was found! Please check if there are any erro
 Sending telemetry for run id 2021541511
 ```
 
+deploy 不用看，自然是 build 失败导致缺少需要的文件。从 build 错误日志中看到，
+
+`Error:  The hexo-theme-next theme could not be found.`
+
+这个没改过，我又确认了下 site 目录下的文件夹，hexo-theme-next 是存在的。于是我将其改为 next 试试，还是不行，感觉不是这个问题，此路不通。
+
+## 可能是CNAME失效，导致域名跳转失败？
+
+直接访问 https://sherlockyb.github.io 试试，发现并没有出现404，但首页空白，难道 hexo 生成的 index.html 是空的？通过 inspect 看了下首页源码，还真是空白页！除了 html, head 和 body 三对标签，什么内容都没有。
+
+![file2](hexo-blog-website-page-blank-or-404/github-io-index-empty.png)
+
+然后也查看了下本地 `hexo generate` 产生的 public 文件夹，发现不仅 index.html，很多其他文件也都是 zero bytes，
+
+![file1](hexo-blog-website-page-blank-or-404/local-hexo-generate-empty-file.png)
+
+于是继续 Google，发现有[网友](#参考)也遇到过类似问题并解决了，原因是，
+
+> hexo 与 node 的版本不兼容，要么 node 过高，要么 hexo 过低
+
+我查了下本地安装的 hexo 版本，
+
+```
+hexo: 3.9.0
+hexo-cli: 2.0.0
+os: Darwin 20.6.0 darwin x64
+node: 17.8.0
+v8: 9.6.180.15-node.16
+uv: 1.43.0
+zlib: 1.2.11
+brotli: 1.0.9
+ares: 1.18.1
+modules: 102
+nghttp2: 1.47.0
+napi: 8
+llhttp: 6.0.4
+openssl: 3.0.2+quic
+cldr: 40.0
+icu: 70.1
+tz: 2021a3
+unicode: 14.0
+ngtcp2: 0.1.0-DEV
+nghttp3: 0.1.0-DEV
+```
+
+hexo-3.9.0 是比较老的版本了，截止发稿最新版已经是 6.1.0 了，而 node 的版本却高达 17.8.0，是比较符合前面提到的 cause 的，剩下的问题就是如何升级 hexo 或者 降级 node 了。
+
+# 解决问题
 
 
-可能是CNAME失效，导致域名跳转失败？
 
-直接访问 https://sherlockyb.github.io 试试，发现并没有出现404，但首页空白，难道 hexo 生成的 index.html 是空的？
+# 参考：
+
+1. [hexo 生成的 html 文件为空的问题](https://alanlee.fun/2021/02/28/hexo-empty-html/)
 
 
 
