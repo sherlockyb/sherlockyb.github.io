@@ -17,11 +17,11 @@ date: 2022-03-24 22:00:00
 
 # 排查和定位
 
-## github上的线索
+## github 上的线索
 
 发现 Actions 中此次 hexo deploy 触发的 build 和 deploy 均失败了。
 
-### build error如下，[detail](https://github.com/sherlockyb/sherlockyb.github.io/runs/5642002288?check_suite_focus=true)
+### build error 如下，[detail](https://github.com/sherlockyb/sherlockyb.github.io/runs/5642002288?check_suite_focus=true)
 
 ```shell
 /usr/local/bundle/gems/jekyll-3.9.0/lib/jekyll/theme.rb:84:in `rescue in gemspec': The hexo-theme-next theme could not be found. (Jekyll::Errors::MissingDependencyException)
@@ -98,19 +98,19 @@ deploy 不用看，自然是 build 失败导致缺少需要的文件。从 build
 
 然后也查看了下本地 `hexo generate` 产生的 public 文件夹，发现不仅 index.html，很多其他文件也都是 zero bytes，
 
-![file1](hexo-blog-website-page-blank-or-404/local-hexo-generate-empty-file.png)
+![file3](hexo-blog-website-page-blank-or-404/local-hexo-generate-empty-file.png)
 
 于是继续 Google，发现有[网友](#参考)也遇到过类似问题并解决了，原因是，
 
 > hexo 与 node 的版本不兼容，要么 node 过高，要么 hexo 过低
 
-我查了下本地安装的 hexo 版本，
+我查了下本地安装的 hexo 版本，`./node_modules/hexo/bin/hexo --version`
 
-```
+```shell
 hexo: 3.9.0
 hexo-cli: 2.0.0
 os: Darwin 20.6.0 darwin x64
-node: 17.8.0
+node: 15.5.0
 v8: 9.6.180.15-node.16
 uv: 1.43.0
 zlib: 1.2.11
@@ -129,15 +129,101 @@ ngtcp2: 0.1.0-DEV
 nghttp3: 0.1.0-DEV
 ```
 
-hexo-3.9.0 是比较老的版本了，截止发稿最新版已经是 6.1.0 了，而 node 的版本却高达 17.8.0，是比较符合前面提到的 cause 的，剩下的问题就是如何升级 hexo 或者 降级 node 了。
+hexo-3.9.0 是比较老的版本了，截止发稿最新版已经是 6.1.0 了，而 node 的版本却高达 15.5.0，是比较符合前面提到的 cause 的，剩下的问题就是如何升级 hexo 或者降级 node 了。
 
 # 解决问题
 
+hexo的版本安装时并未指定，所以当前的版本可能是能获取到的最新版，升级较困难，但还是先尝试一下。
 
+执行 `npm i hexo-cli`，安装特别慢，网上查了下，这种一般是由于国内访问 npm 默认的官方源 `https://registry.npmjs.org/` 比较慢，于是将其切换为国内镜像，
+
+```
+npm config set registry http://r.cnpmjs.org/
+```
+
+再执行上述命令时，发现快很多。
+
+然后再查看 hexo 版本，发现仍然没变。
+
+## 最终考虑降级 node
+
+先卸载再重装是可以的，且简单粗暴，但并不想这么做，因为已有很多其他项目的前端代码也依赖当前版本的 node，如果因为降级 node 版本而带来未知的影响得不偿失。网上又 Google 了一番，发现有 nvm 这个好东西，可以随时切换指定版本的 node，就它了。
+
+### 安装 nvm
+
+先是 `brew install nvm` ，但执行完后，尝试 nvm 命令时却提示 `command not found`，按照[文中](#Node 版本的升级和降级)网友建议，通过 brew 按照存在 bug，可用如下脚本安装，
+
+```shell
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
+```
+
+安装结束后，查看 nvm 版本如下，表示安装成功。
+
+```shell
+sherlockyb@07L0220100005DD sherlockyb.github.io % nvm --version
+0.39.1
+```
+
+### 用 nvm 降级 node 到 12.14.0
+
+用法很简单，一行命令就搞定，
+
+```shell
+nvm install 12.14.0
+nvm use 12.14.0
+```
+
+然后再查看 node 版本如下，已经降级了
+
+```shell
+sherlockyb@07L0220100005DD sherlockyb.github.io % node --version
+v12.14.0
+```
+
+此时再通过 `./node_modules/hexo/bin/hexo --version` 查看 hexo 及其依赖包的版本时如下，node 版本已经变了。
+
+```shell
+hexo: 3.9.0
+hexo-cli: 2.0.0
+os: Darwin 20.6.0 darwin x64
+node: 12.14.0
+v8: 7.7.299.13-node.16
+uv: 1.33.1
+zlib: 1.2.11
+brotli: 1.0.7
+ares: 1.15.0
+modules: 72
+nghttp2: 1.39.2
+napi: 5
+llhttp: 1.1.4
+http_parser: 2.8.0
+openssl: 1.1.1d
+cldr: 35.1
+icu: 64.2
+tz: 2019c
+unicode: 12.1
+```
+
+### 重新生成并部署
+
+清除并重新 generate，
+
+```
+./node_modules/hexo/bin/hexo clean
+./node_modules/hexo/bin/hexo g
+```
+
+然后再查看 public 文件夹，会发现 index.html 已经正常生成了，
+
+![file4](hexo-blog-website-page-blank-or-404/local-hexo-generate-successful-file.png)
+
+最后通过 `./node_modules/hexo/bin/hexo d` 部署到GitHub Pages，网站恢复正常。
 
 # 参考：
 
-1. [hexo 生成的 html 文件为空的问题](https://alanlee.fun/2021/02/28/hexo-empty-html/)
+##### [hexo 生成的 html 文件为空的问题](https://alanlee.fun/2021/02/28/hexo-empty-html/)
+
+##### [Node 版本的升级和降级](https://www.jianshu.com/p/23775773b9d3)
 
 
 
