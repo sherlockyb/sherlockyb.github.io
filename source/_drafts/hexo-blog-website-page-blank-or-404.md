@@ -100,7 +100,7 @@ deploy 不用看，自然是 build 失败导致缺少需要的文件。从 build
 
 ![file3](hexo-blog-website-page-blank-or-404/local-hexo-generate-empty-file.png)
 
-于是继续 Google，发现有[网友](#参考)也遇到过类似问题并解决了，原因是，
+于是问题变为 hexo 生成的HTML为空，继续 Google，发现有[网友](https://alanlee.fun/2021/02/28/hexo-empty-html/)也遇到过类似问题并解决了，原因是，
 
 > hexo 与 node 的版本不兼容，要么 node 过高，要么 hexo 过低
 
@@ -133,25 +133,15 @@ hexo-3.9.0 是比较老的版本了，截止发稿最新版已经是 6.1.0 了�
 
 # 解决问题
 
-hexo的版本安装时并未指定，所以当前的版本可能是能获取到的最新版，升级较困难，但还是先尝试一下。
+## 降级 node
 
-执行 `npm i hexo-cli`，安装特别慢，网上查了下，这种一般是由于国内访问 npm 默认的官方源 `https://registry.npmjs.org/` 比较慢，于是将其切换为国内镜像，
-
-```
-npm config set registry http://r.cnpmjs.org/
-```
-
-再执行上述命令时，发现快很多。
-
-然后再查看 hexo 版本，发现仍然没变。
-
-## 最终考虑降级 node
+先看看如何降级 node。
 
 先卸载再重装是可以的，且简单粗暴，但并不想这么做，因为已有很多其他项目的前端代码也依赖当前版本的 node，如果因为降级 node 版本而带来未知的影响得不偿失。网上又 Google 了一番，发现有 nvm 这个好东西，可以随时切换指定版本的 node，就它了。
 
 ### 安装 nvm
 
-先是 `brew install nvm` ，但执行完后，尝试 nvm 命令时却提示 `command not found`，按照[文中](#Node 版本的升级和降级)网友建议，通过 brew 按照存在 bug，可用如下脚本安装，
+先是 `brew install nvm` ，但执行完后，尝试 nvm 命令时却提示 `command not found`，按照[文中](https://www.jianshu.com/p/23775773b9d3)网友建议，通过 brew 安装存在 bug，可用如下脚本安装，
 
 ```shell
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
@@ -204,7 +194,7 @@ tz: 2019c
 unicode: 12.1
 ```
 
-### 重新生成并部署
+### 重新生成HTML
 
 清除并重新 generate，
 
@@ -213,17 +203,154 @@ unicode: 12.1
 ./node_modules/hexo/bin/hexo g
 ```
 
-然后再查看 public 文件夹，会发现 index.html 已经正常生成了，
+然后再查看 public 文件夹，会发现 index.html 已经正常生成了，打开后内容也是正常。最后本地预览一下，网站各项功能都没啥问题。
 
-![file4](hexo-blog-website-page-blank-or-404/local-hexo-generate-successful-file.png)
+![file5](hexo-blog-website-page-blank-or-404/local-hexo-generate-successful-file.png)
+
+#### 部署
 
 最后通过 `./node_modules/hexo/bin/hexo d` 部署到GitHub Pages，网站恢复正常。
 
-# 参考：
+## 升级 hexo
 
-##### [hexo 生成的 html 文件为空的问题](https://alanlee.fun/2021/02/28/hexo-empty-html/)
+降级 node 已经被验证是可行且简单的，不妨尝试下升级 hexo 会咋样。
 
-##### [Node 版本的升级和降级](https://www.jianshu.com/p/23775773b9d3)
+此次 hexo 是通过 `npm install hexo` 安装的，得到的默认版本就是 3.9.0，尝试升级 hexo 到最新版。
 
+### 先执行 `npm i hexo-cli`
 
+安装特别慢，这种一般是由于国内访问 npm 默认的外网官方源 `https://registry.npmjs.org/` 比较慢，于是将其切换为国内镜像，
+
+```
+npm config set registry http://r.cnpmjs.org/
+```
+
+再执行上述命令时，发现快很多。
+
+然后再查看 hexo 版本，暂时还未变化。
+
+### 再依次执行如下命令
+
+```shell
+npm install npm-check        							// 安装 npm-check 到当前 node_modules 目录
+./node_modules/npm-check/bin/cli.js				// 查看系统插件是否需要升级
+npm install npm-upgrade
+./node_modules/npm-upgrade/lib/bin/cli.js	// 更新 package.json
+npm update --save													// 更新插件
+```
+
+执行完 `npm update --save` 后，可以看到 hexo 版本升级到了 6.1.0，并且 hexo-deployer-git 等相关 hexo 插件也随之升级了。
+
+```
++ hexo-generator-category@1.0.0
++ hexo-generator-archive@1.0.0
++ hexo-deployer-git@3.0.0
++ hexo-renderer-marked@5.0.0
++ hexo-generator-search@2.4.3
++ hexo-generator-index@2.0.0
++ hexo@6.1.0
++ hexo-generator-sitemap@3.0.1
++ hexo-renderer-ejs@2.0.0
++ hexo-generator-tag@1.0.0
++ hexo-renderer-stylus@2.0.1
++ hexo-server@3.0.0
+added 93 packages from 104 contributors, removed 259 packages and updated 56 packages in 382.579s
+```
+
+但是当我执行 `./node_modules/hexo-cli/bin/hexo --version` 时却报如下错误，
+
+```shell
+FATAL YAMLException: Specified list of YAML types (or a single Type object) contains a non-Type object.
+    at /Users/biyang/DevCodes/sherlockyb.github.io/node_modules/hexo/node_modules/js-yaml/lib/schema.js:104:13
+    at Array.forEach (<anonymous>)
+    at Schema.extend (/Users/biyang/DevCodes/sherlockyb.github.io/node_modules/hexo/node_modules/js-yaml/lib/schema.js:102:12)
+    at Object.<anonymous> (/Users/biyang/DevCodes/sherlockyb.github.io/node_modules/hexo/lib/plugins/renderer/yaml.js:5:36)
+    at Module._compile (node:internal/modules/cjs/loader:1108:14)
+    at Object.Module._extensions..js (node:internal/modules/cjs/loader:1137:10)
+    at Module.load (node:internal/modules/cjs/loader:973:32)
+    at Function.Module._load (node:internal/modules/cjs/loader:813:14)
+    at Module.require (node:internal/modules/cjs/loader:997:19)
+    at require (node:internal/modules/cjs/helpers:92:18)
+    at module.exports (/Users/biyang/DevCodes/sherlockyb.github.io/node_modules/hexo/lib/plugins/renderer/index.js:15:16)
+    at Hexo.init (/Users/biyang/DevCodes/sherlockyb.github.io/node_modules/hexo/lib/hexo/index.js:235:35)
+    at /Users/biyang/DevCodes/sherlockyb.github.io/node_modules/hexo-cli/lib/hexo.js:49:17
+    at tryCatcher (/Users/biyang/DevCodes/sherlockyb.github.io/node_modules/bluebird/js/release/util.js:16:23)
+    at Promise._settlePromiseFromHandler (/Users/biyang/DevCodes/sherlockyb.github.io/node_modules/bluebird/js/release/promise.js:547:31)
+    at Promise._settlePromise (/Users/biyang/DevCodes/sherlockyb.github.io/node_modules/bluebird/js/release/promise.js:604:18) {
+  reason: 'Specified list of YAML types (or a single Type object) contains a non-Type object.',
+  mark: undefined
+}
+```
+
+Google了一番发现，在这个 [issue](https://issuehunt.io/r/hexojs/hexo/issues/4917) 中找到了答案，貌似是 6.1.0 版本引入了 bug，解决方案是回退到 6.0.0，
+
+![file4](hexo-blog-website-page-blank-or-404/hexo-bug.png)
+
+于是通过 `npm i hexo@6.0.0` 回退，执行成功后，再次查看 hexo 版本，回复正常了。
+
+```
+hexo: 6.0.0
+hexo-cli: 4.3.0
+os: darwin 20.6.0 11.6
+node: 15.5.0
+v8: 8.6.395.17-node.23
+uv: 1.40.0
+zlib: 1.2.11
+brotli: 1.0.9
+ares: 1.17.1
+modules: 88
+nghttp2: 1.41.0
+napi: 7
+llhttp: 2.1.3
+openssl: 1.1.1i
+cldr: 37.0
+icu: 67.1
+tz: 2019c
+unicode: 13.0
+```
+
+然后尝试重新生成 HTML，却发现index.html文件内容长这样，
+
+```html
+{% extends '_layout.swig' %}
+{% import '_macro/post.swig' as post_template %}
+{% import '_macro/sidebar.swig' as sidebar_template %}
+
+{% block title %} {{ config.title }} {% endblock %}
+
+{% block page_class %}
+  {% if is_home() %} page-home {% endif %}
+{% endblock %}
+
+{% block content %}
+  <section id="posts" class="posts-expand">
+    {% for post in page.posts %}
+      {{ post_template.render(post, true) }}
+    {% endfor %}
+  </section>
+
+  {% include '_partials/pagination.swig' %}
+{% endblock %}
+
+{% block sidebar %}
+  {{ sidebar_template.render(false) }}
+{% endblock %}
+```
+
+这是 `next/layout` 下 `index.swig` 中的原始内容，说明 swig 模板压根没被处理，因为我的 NexT 主题还比较老（5.1.0），用的是 swig，而从该 [issue](https://github.com/next-theme/hexo-theme-next/issues/4) 可得知，鉴于 swig 缺乏维护，**hexo 从 5.0 开始移除了对 swig 模板的支持，改为独立的 hexo-renderer-swig 插件**，对于 NexT 则是从 7.4.2 版本开始，使用 Nunjucks 代替 swig 作为新的模板引擎。也就是说想要继续使用 swig，需要单独安装 hexo-renderer-swig 插件。顺便看了下 swig 的[官网](https://www.swig.org/)，最新的 Release News 也是两年前了。
+
+话不多说，执行 `npm install hexo-renderer-swig`，然后重新生成 HTML，看了下内容，这回终于正常了。
+然后通过 `./node_modules/hexo/bin/hexo s` 预览一下，网站整体功能是没问题，但又发现若干小问题，
+
+* sidebar 的头像没有了，据说是 hexo 从 5.4.0 开始就去掉 avatar 的配置项了，交由主题去管理，好在 NexT 5.1.0 是有 avatar 这个配置项的，只不过之前没开启而已，这个还挺容易解决。
+* 翻页的button 处，awesome icon 不展示，显示为源码了
+* 查看单个博客上下滑动时，左侧目录栏不跟着一起变了
+
+从前面降级 node 可以看出，之前 3.9.0 版本的 hexo 还是好的，看起来就是高版本的 hexo 6.0 与低版本的 NexT 5.1.0 有若干不兼容的地方。上面提到的只是通过简单验证发现的问题，可能还有其他未知的问题。当然，这些小问题都是可以通过改配置或者是改源码来修复，但考虑到时间成本，我就不继续下去了，放弃升级，回滚 hexo 至 3.9.0。
+
+# 划重点
+
+* hexo 与 node 版本不兼容，可能导致生成的HTML为空，建议降级 node 更安全。
+* hexo 5.0之后不再内置支持 swig，若需要，得单独安装 hexo-renderer-swig。
+* nvm 管理 node 版本的神器，推荐。
 

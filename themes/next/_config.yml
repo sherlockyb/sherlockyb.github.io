@@ -159,7 +159,7 @@ social_icons:
 # Sidebar Avatar
 # in theme directory(source/images): /images/avatar.jpg
 # in site  directory(source/uploads): /uploads/avatar.jpg
-#avatar:
+avatar: /images/me.jpeg
 
 
 # Table Of Contents in the Sidebar
@@ -250,7 +250,7 @@ wechat_subscriber:
 #   image: url-of-image   - Images's url
 custom_logo:
   enabled: false
-  image: 
+  image:
 
 
 # Code Highlight theme
