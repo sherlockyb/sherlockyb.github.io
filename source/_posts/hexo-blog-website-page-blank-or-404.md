@@ -7,7 +7,8 @@ categories:
 date: 2022-03-24 22:00:00
 ---
 
-太久没更新博客了，最近准备拾起来。于是为了“改头换面”，今天想调整一下 sidebar 上的头像，因为是新电脑，没有 hexo 等环境，于是按照之前分享过的一篇[博文](https://www.yangbing.club/2019/06/29/save-hexo-source-post-with-git-branch/)，安装 hexo，替换 source 目录下的头像图片并调整 _config.xml，本地预览一切正常，然后直接执行 `hexo d`部署完成，访问网站域名 www.yangbing.club 发现直接404了，刷新了多次，用无痕浏览，等了许久再试，还是老样子，这可把我吓坏了，从未遇到过这等情况，等于博客直接挂了。
+
+太久没更新博客了，最近准备拾起来。为了“改头换面”，今天想调整一下 sidebar 上的头像，因为是新电脑，没有 hexo 等环境，于是按照之前分享过的一篇[博文](https://www.yangbing.club/2019/06/29/save-hexo-source-post-with-git-branch/)，安装 hexo，替换 source 目录下的头像图片并调整 _config.xml，本地预览一切正常，然后直接执行 `hexo d`部署完成，访问网站域名 www.yangbing.club 发现直接404了，刷新了多次，用无痕浏览，等了许久再试，还是老样子，这可把我吓坏了，从未遇到过这等情况，等于博客直接挂了。
 
 <!--more-->
 
@@ -21,7 +22,7 @@ date: 2022-03-24 22:00:00
 
 发现 Actions 中此次 hexo deploy 触发的 build 和 deploy 均失败了。
 
-### build error 如下，[detail](https://github.com/sherlockyb/sherlockyb.github.io/runs/5642002288?check_suite_focus=true)
+build error 如下，[detail](https://github.com/sherlockyb/sherlockyb.github.io/runs/5642002288?check_suite_focus=true)
 
 ```shell
 /usr/local/bundle/gems/jekyll-3.9.0/lib/jekyll/theme.rb:84:in `rescue in gemspec': The hexo-theme-next theme could not be found. (Jekyll::Errors::MissingDependencyException)
@@ -71,7 +72,7 @@ Configuration file: /github/workspace/./_config.yml
 github-pages 225 | Error:  The hexo-theme-next theme could not be found.
 ```
 
-### deploy error 如下，[detail](https://github.com/sherlockyb/sherlockyb.github.io/runs/5642009024?check_suite_focus=true)
+ deploy error 如下，[detail](https://github.com/sherlockyb/sherlockyb.github.io/runs/5642009024?check_suite_focus=true)
 
 ```
 Actor: sherlockyb
@@ -92,7 +93,7 @@ deploy 不用看，自然是 build 失败导致缺少需要的文件。从 build
 
 ## 可能是CNAME失效，导致域名跳转失败？
 
-直接访问 https://sherlockyb.github.io 试试，发现并没有出现404，但首页空白，难道 hexo 生成的 index.html 是空的？通过 inspect 看了下首页源码，还真是空白页！除了 html, head 和 body 三对标签，什么内容都没有。
+直接访问 https://sherlockyb.github.io 试试，发现并没有出现404，但首页空白，难道 hexo 生成的 index.html 是空的？通过 inspect 看了下首页源码，还真是空白页！除了 html, head 和 body 三对空标签，其他什么内容都没有。
 
 ![file2](hexo-blog-website-page-blank-or-404/github-io-index-empty.png)
 
@@ -141,13 +142,25 @@ hexo-3.9.0 是比较老的版本了，截止发稿最新版已经是 6.1.0 了�
 
 ### 安装 nvm
 
-先是 `brew install nvm` ，但执行完后，尝试 nvm 命令时却提示 `command not found`，按照[文中](https://www.jianshu.com/p/23775773b9d3)网友建议，通过 brew 安装存在 bug，可用如下脚本安装，
+先是 `brew install nvm` ，但执行完后，尝试 nvm 命令时却提示 `command not found`，按照[文中](https://www.jianshu.com/p/23775773b9d3)网友说法，通过 brew 安装存在 bug，可用如下脚本安装，
 
 ```shell
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
 ```
 
-安装结束后，查看 nvm 版本如下，表示安装成功。
+在 Mac 下如果遇到如下错误，
+
+```shell
+./install.sh: line 416: /Users/sherlockyb/.zshrc: Permission denied
+```
+
+直接进到 nvm 的默认的 git 目录 `~/.nvm`，然后执行 `sudo ./install.sh`，可以看到安装脚本会转而使用 `.bash_profile`文件，
+
+```shell
+Appending nvm source string to /Users/sherlockyb/.bash_profile
+```
+
+安装结束后，重新打开 terminal 查看 nvm 版本如下，表示安装成功。
 
 ```shell
 sherlockyb@07L0220100005DD sherlockyb.github.io % nvm --version
@@ -156,11 +169,17 @@ sherlockyb@07L0220100005DD sherlockyb.github.io % nvm --version
 
 ### 用 nvm 降级 node 到 12.14.0
 
-用法很简单，一行命令就搞定，
+用法很简单，两行命令就搞定，
 
 ```shell
 nvm install 12.14.0
 nvm use 12.14.0
+```
+
+**这里需注意**，`nvm use` 只是临时切换 node 版本，只适用于当前 terminal，如果打开新的 terminal，node 还是之前的旧版本。如果想要永久切换的话，可使用如下命令，
+
+```
+nvm alias default 12.14.0
 ```
 
 然后再查看 node 版本如下，已经降级了
@@ -207,13 +226,13 @@ unicode: 12.1
 
 ![file5](hexo-blog-website-page-blank-or-404/local-hexo-generate-successful-file.png)
 
-#### 部署
+### 部署
 
 最后通过 `./node_modules/hexo/bin/hexo d` 部署到GitHub Pages，网站恢复正常。
 
 ## 升级 hexo
 
-降级 node 已经被验证是可行且简单的，不妨尝试下升级 hexo 会咋样。
+降级 node 已经被验证是可行且简单的，不妨再尝试下升级 hexo 会咋样。
 
 此次 hexo 是通过 `npm install hexo` 安装的，得到的默认版本就是 3.9.0，尝试升级 hexo 到最新版。
 
@@ -227,16 +246,16 @@ npm config set registry http://r.cnpmjs.org/
 
 再执行上述命令时，发现快很多。
 
-然后再查看 hexo 版本，暂时还未变化。
+此时再查看 hexo 版本，暂时还未变化。
 
 ### 再依次执行如下命令
 
 ```shell
-npm install npm-check        							// 安装 npm-check 到当前 node_modules 目录
-./node_modules/npm-check/bin/cli.js				// 查看系统插件是否需要升级
+npm install npm-check                     // 安装 npm-check 到当前 node_modules 目录
+./node_modules/npm-check/bin/cli.js       // 查看系统插件是否需要升级
 npm install npm-upgrade
-./node_modules/npm-upgrade/lib/bin/cli.js	// 更新 package.json
-npm update --save													// 更新插件
+./node_modules/npm-upgrade/lib/bin/cli.js // 更新 package.json
+npm update --save                         // 更新插件
 ```
 
 执行完 `npm update --save` 后，可以看到 hexo 版本升级到了 6.1.0，并且 hexo-deployer-git 等相关 hexo 插件也随之升级了。
@@ -257,7 +276,9 @@ npm update --save													// 更新插件
 added 93 packages from 104 contributors, removed 259 packages and updated 56 packages in 382.579s
 ```
 
-但是当我执行 `./node_modules/hexo-cli/bin/hexo --version` 时却报如下错误，
+### 问题层出不穷
+
+就当我以为这就搞定了时，执行 `./node_modules/hexo-cli/bin/hexo --version` 时却报如下错误，
 
 ```shell
 FATAL YAMLException: Specified list of YAML types (or a single Type object) contains a non-Type object.
@@ -281,6 +302,8 @@ FATAL YAMLException: Specified list of YAML types (or a single Type object) cont
   mark: undefined
 }
 ```
+
+#### hexo 6.1.0 的 bug
 
 Google了一番发现，在这个 [issue](https://issuehunt.io/r/hexojs/hexo/issues/4917) 中找到了答案，貌似是 6.1.0 版本引入了 bug，解决方案是回退到 6.0.0，
 
@@ -308,6 +331,8 @@ icu: 67.1
 tz: 2019c
 unicode: 13.0
 ```
+
+#### swig模板失效了
 
 然后尝试重新生成 HTML，却发现index.html文件内容长这样，
 
@@ -340,17 +365,24 @@ unicode: 13.0
 这是 `next/layout` 下 `index.swig` 中的原始内容，说明 swig 模板压根没被处理，因为我的 NexT 主题还比较老（5.1.0），用的是 swig，而从该 [issue](https://github.com/next-theme/hexo-theme-next/issues/4) 可得知，鉴于 swig 缺乏维护，**hexo 从 5.0 开始移除了对 swig 模板的支持，改为独立的 hexo-renderer-swig 插件**，对于 NexT 则是从 7.4.2 版本开始，使用 Nunjucks 代替 swig 作为新的模板引擎。也就是说想要继续使用 swig，需要单独安装 hexo-renderer-swig 插件。顺便看了下 swig 的[官网](https://www.swig.org/)，最新的 Release News 也是两年前了。
 
 话不多说，执行 `npm install hexo-renderer-swig`，然后重新生成 HTML，看了下内容，这回终于正常了。
-然后通过 `./node_modules/hexo/bin/hexo s` 预览一下，网站整体功能是没问题，但又发现若干小问题，
+
+#### 若干小问题
+
+通过 `./node_modules/hexo/bin/hexo s` 本地预览，网站整体功能是没问题，但又发现若干小问题，
 
 * sidebar 的头像没有了，据说是 hexo 从 5.4.0 开始就去掉 avatar 的配置项了，交由主题去管理，好在 NexT 5.1.0 是有 avatar 这个配置项的，只不过之前没开启而已，这个还挺容易解决。
 * 翻页的button 处，awesome icon 不展示，显示为源码了
 * 查看单个博客上下滑动时，左侧目录栏不跟着一起变了
 
-从前面降级 node 可以看出，之前 3.9.0 版本的 hexo 还是好的，看起来就是高版本的 hexo 6.0 与低版本的 NexT 5.1.0 有若干不兼容的地方。上面提到的只是通过简单验证发现的问题，可能还有其他未知的问题。当然，这些小问题都是可以通过改配置或者是改源码来修复，但考虑到时间成本，我就不继续下去了，放弃升级，回滚 hexo 至 3.9.0。
+从前面降级 node 可以看出，之前 3.9.0 版本的 hexo 还是好的，看起来就是高版本的 hexo 6.0 与低版本的 NexT 5.1.0 有若干不兼容的地方。上面提到的只是通过简单验证发现的问题，可能还有其他未知的问题。当然，这些小问题都是可以通过改配置或者是改源码来修复。
+
+#### 放弃并回归 node 降级
+
+考虑到时间成本，我就不继续下去了，放弃升级，回滚 hexo 至 3.9.0，最终采用降级 node 的方案。
 
 # 划重点
 
 * hexo 与 node 版本不兼容，可能导致生成的HTML为空，建议降级 node 更安全。
-* hexo 5.0之后不再内置支持 swig，若需要，得单独安装 hexo-renderer-swig。
-* nvm 管理 node 版本的神器，推荐。
+* hexo 5.0 之后不再内置支持 swig，若需要，得单独安装 hexo-renderer-swig。
+* nvm 乃管理 node 版本的神器，推荐。
 
