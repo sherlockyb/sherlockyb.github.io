@@ -5,7 +5,7 @@
     div.id = 'utteranc-comments';
 
     var styleEle = document.createElement('style');
-    styleEle.innerHTML = '.utterances-frame{min-width: 104%; left: -20px}';
+    styleEle.innerHTML = '.utterances-frame{min-width: 102%; left: -5px}';
     div.appendChild(styleEle);
 
     var scriptEle = document.createElement('script');
