@@ -116,3 +116,125 @@ object BrokerCompressionCodec {
 
 在 broker 端的压缩配置分为两个级别：全局的 broker 级别 和 局部的topic 级别。
 
+TODO
+
+# 何处会进行压缩
+
+可能产生压缩的地方有两处：producer 端和 broker 端。
+
+producer 端发生压缩的唯一条件就是在 producer 端为属性 `compression.type` 配置了除 `none` 之外有效的压缩类型。而对于 broker 端，产生压缩的情况就复杂得多，这不仅取决于 broker 端自身的压缩编码 `targetCodec` 是否是需要压缩的类型，还取决于 `targetCodec` 跟 producer 端的 `sourceCodec` 是否相同，除此之外，还跟消息格式的 `magic` 版本有关，关于 `magic` 版本此处不做展开，之后会开专门的博文讨论这个。
+
+第一种最直接的就是在 broker 端指定了压缩类型，
+
+# 压缩和解压原理
+
+压缩和解压涉及到几个关键的类：`CompressionType` 、`MemoryRecordsBuilder`、`DefaultRecordBatch`、`AbstractLegacyRecordBatch`。
+
+## CompressionType
+
+在说 `CompressionType` 之前，我们先看下 `CompressionCodec` 这个 Scala 脚本。
+
+### CompressionCodec
+
+部分源码如下，
+
+```scala
+...
+case object GZIPCompressionCodec extends CompressionCodec with BrokerCompressionCodec {
+  val codec = 1
+  val name = "gzip"
+}
+
+case object SnappyCompressionCodec extends CompressionCodec with BrokerCompressionCodec {
+  val codec = 2
+  val name = "snappy"
+}
+
+case object LZ4CompressionCodec extends CompressionCodec with BrokerCompressionCodec {
+  val codec = 3
+  val name = "lz4"
+}
+
+case object ZStdCompressionCodec extends CompressionCodec with BrokerCompressionCodec {
+  val codec = 4
+  val name = "zstd"
+}
+
+case object NoCompressionCodec extends CompressionCodec with BrokerCompressionCodec {
+  val codec = 0
+  val name = "none"
+}
+
+case object UncompressedCodec extends BrokerCompressionCodec {
+  val name = "uncompressed"
+}
+
+case object ProducerCompressionCodec extends BrokerCompressionCodec {
+  val name = "producer"
+}
+```
+
+该脚本定义了 `GZIPCompressionCodec` 等共 7 个 case object，可类比于 Java 中枚举，这些 case object 中的 `name` 集合则刚好覆盖了前文所提到的属性 `compression.type` 的所有可选值，包括 producer 端和 broker 端的。而与 `name` 绑定在一起的 `codec` 则是最终真正写入消息体的压缩编码，`name` 只是为了可读性友好。从上可知，压缩编码`codec` 的有效取值只有 `0~4`，分别对应 `none`、`gzip`、`snappy`、`lz4`和`zstd`，而这五种取值恰好是 `CompressionType` 中定义的五种枚举常量。
+
+由此可知，`CompressionCodec`是面向配置属性 `compression.type`的可选值的，并将数值化的压缩编码 `codec` 映射为可读性强的 `name`；而 `CompressionType`则是定义了与压缩编码对应的枚举常量，二者通过 `name` 关联。
+
+### CompressionType 源码
+
+`CompressionType` 定义了与压缩编码对应的五种压缩类型枚举，并且通过用于压缩的 `wrapForOutput`和用于解压的 `wrapForInput`这两个抽象方法将每种压缩类型与对应的压缩实现绑定在一起，既避免了常规的 `if-else` 判断，也将压缩的定义与实现完全收敛到 `CompressionType` ，符合单一职责原则。其实类似这种优雅的设计在 JDK 中也能经常看到其身影，比如 `TimeUnit`。直接看源码，
+
+```java
+public enum CompressionType {
+    ...
+    GZIP(1, "gzip", 1.0f) {
+        @Override
+        public OutputStream wrapForOutput(ByteBufferOutputStream buffer, byte messageVersion) {
+            try {
+                return new BufferedOutputStream(new GZIPOutputStream(buffer, 8 * 1024), 16 * 1024);
+            } catch (Exception e) {
+                throw new KafkaException(e);
+            }
+        }
+
+        @Override
+        public InputStream wrapForInput(ByteBuffer buffer, byte messageVersion, BufferSupplier decompressionBufferSupplier) {
+            try {
+                // Set output buffer (uncompressed) to 16 KB (none by default) and input buffer (compressed) to
+                // 8 KB (0.5 KB by default) to ensure reasonable performance in cases where the caller reads a small
+                // number of bytes (potentially a single byte)
+                return new BufferedInputStream(new GZIPInputStream(new ByteBufferInputStream(buffer), 8 * 1024),
+                        16 * 1024);
+            } catch (Exception e) {
+                throw new KafkaException(e);
+            }
+        }
+    },
+    ...
+    ZSTD(4, "zstd", 1.0f) {
+        @Override
+        public OutputStream wrapForOutput(ByteBufferOutputStream buffer, byte messageVersion) {
+            return ZstdFactory.wrapForOutput(buffer);
+        }
+
+        @Override
+        public InputStream wrapForInput(ByteBuffer buffer, byte messageVersion, BufferSupplier decompressionBufferSupplier) {
+            return ZstdFactory.wrapForInput(buffer, messageVersion, decompressionBufferSupplier);
+        }
+    };
+    ...
+    // Wrap bufferStream with an OutputStream that will compress data with this CompressionType.
+    public abstract OutputStream wrapForOutput(ByteBufferOutputStream bufferStream, byte messageVersion);
+    // Wrap buffer with an InputStream that will decompress data with this CompressionType.
+    public abstract InputStream wrapForInput(ByteBuffer buffer, byte messageVersion, BufferSupplier decompressionBufferSupplier);
+
+    ...
+}
+```
+
+每种压缩类型对于`wrapForOutput`和`wrapForInput`两方法的具体实现已经很清楚地阐述了压缩和解压的方式，感兴趣的朋友可以从该入口 `step in` 一探究竟。这里就不细述。当然这只是处理压缩最小的基本单元，为了搞清楚 Kafka 在何处使用它，还得继续看其他几个核心类。
+
+在此之前，就上述源码，抛开本次主题，我还想谈几个值得学习借鉴的细节，
+
+> 1. `Snappy` 和 `Zstd` 都是用的 `XXXFactory` 静态方法来构建 Stream 对象，而其他的比如 `Lz4` 则都是直接通过 `new` 创建的对象。之所以这么做，我们进一步 `step in` 就会发现，对于 `Snappy` 和 `Zstd`，Kafka 都是直接依赖的第三方库，而其他的则是 JDK 或 Kafka 自己的实现。为了减少第三方库的副作用，通过此方式将第三方库的类的惰性加载做到极致，这也体现出作者对 Java 类加载时机的充分理解，很精致的处理。
+> 2. `Gzip` 的`wrapForInput`实现中，在 [KAFKA-6430](https://issues.apache.org/jira/browse/KAFKA-6430) 这个 Improvement 提交中，input buffer 从 0.5 KB 调大到 8 KB，其目的就是能够在一次 Gzip 压缩中处理更多的字节，以获得更高的性能。至少，从 commit 的描述上看，throughput 能翻倍。
+> 3. 抽象方法 `wrapForInput` 中暴露的最后一个 BufferSupplier类型的参数 `decompressionBufferSupplier`，
+
