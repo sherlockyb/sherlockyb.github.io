@@ -128,7 +128,7 @@ producer 端发生压缩的唯一条件就是在 producer 端为属性 `compress
 
 # 压缩和解压原理
 
-压缩和解压涉及到几个关键的类：`CompressionType` 、`MemoryRecordsBuilder`、`DefaultRecordBatch`、`AbstractLegacyRecordBatch`。
+压缩和解压涉及到几个关键的类：`CompressionType` 、`MemoryRecordsBuilder`、`DefaultRecordBatch`、`AbstractLegacyRecordBatch`。其中 `CompressionType` 是压缩相关的枚举，集压缩定义和实现为一体；`MemoryRecordsBuilder` 是负责将新的消息数据写入内存 buffer，即调用 `CompressionType` 中的压缩逻辑 `wrapForOutput` 来写入消息；而 `DefaultRecordBatch` 和 `AbstractLegacyRecordBatch` 则是负责读取消息数据，即调用 `CompressionType` 的解压逻辑 `wrapForInput` 将消息还原为无压缩数据。只不过二者区别是，前者是用于处理新版本格式的消息（即 `magic >= 2`），而后者则是处理老版本格式的消息（即 `magic 为 0 或 1`）。
 
 ## CompressionType
 
@@ -234,7 +234,81 @@ public enum CompressionType {
 
 在此之前，就上述源码，抛开本次主题，我还想谈几个值得学习借鉴的细节，
 
-> 1. `Snappy` 和 `Zstd` 都是用的 `XXXFactory` 静态方法来构建 Stream 对象，而其他的比如 `Lz4` 则都是直接通过 `new` 创建的对象。之所以这么做，我们进一步 `step in` 就会发现，对于 `Snappy` 和 `Zstd`，Kafka 都是直接依赖的第三方库，而其他的则是 JDK 或 Kafka 自己的实现。为了减少第三方库的副作用，通过此方式将第三方库的类的惰性加载做到极致，这也体现出作者对 Java 类加载时机的充分理解，很精致的处理。
+> 1. `Snappy` 和 `Zstd` 都是用的 `XXXFactory` 静态方法来构建 Stream 对象，而其他的比如 `Lz4` 则都是直接通过 `new` 创建的对象。之所以这么做，我们进一步 `step in` 就会发现，对于 `Snappy` 和 `Zstd`，Kafka 都是直接依赖的第三方库，而其他的则是 JDK 或 Kafka 自己的实现。为了减少第三方库的副作用，**通过此方式将第三方库的类的惰性加载做到极致，这也体现出作者对 Java 类加载时机的充分理解，很精致的处理**。
 > 2. `Gzip` 的`wrapForInput`实现中，在 [KAFKA-6430](https://issues.apache.org/jira/browse/KAFKA-6430) 这个 Improvement 提交中，input buffer 从 0.5 KB 调大到 8 KB，其目的就是能够在一次 Gzip 压缩中处理更多的字节，以获得更高的性能。至少，从 commit 的描述上看，throughput 能翻倍。
-> 3. 抽象方法 `wrapForInput` 中暴露的最后一个 BufferSupplier类型的参数 `decompressionBufferSupplier`，
+> 3. 抽象方法 `wrapForInput` 中暴露的最后一个 BufferSupplier类型的参数 `decompressionBufferSupplier`，正如方法的参数说明所言，对于比较小的批量消息，如果在 `wrapForInput` 内部新建 buffer，那么每次方法调用都会新分配buffer，这可能比压缩处理本身更耗时，所以该参数给了一个选择的机会，在外面分配内存，然后方法内循环利用。**在日常的编码中，对于循环中所需的空间，我也会经常会思考是每次新建好还是在外面分配，然后内部循环利用更好，case by case**.
+
+## MemoryRecordsBuilder
+
+```java
+public class MemoryRecordsBuilder implements AutoCloseable {
+    ...
+    // Used to append records, may compress data on the fly
+    private DataOutputStream appendStream;
+    ...
+
+    public MemoryRecordsBuilder(ByteBufferOutputStream bufferStream,
+                                byte magic,
+                                CompressionType compressionType,
+                                TimestampType timestampType,
+                                long baseOffset,
+                                long logAppendTime,
+                                long producerId,
+                                short producerEpoch,
+                                int baseSequence,
+                                boolean isTransactional,
+                                boolean isControlBatch,
+                                int partitionLeaderEpoch,
+                                int writeLimit,
+                                long deleteHorizonMs) {
+        if (magic > RecordBatch.MAGIC_VALUE_V0 && timestampType == TimestampType.NO_TIMESTAMP_TYPE)
+            throw new IllegalArgumentException("TimestampType must be set for magic > 0");
+        if (magic < RecordBatch.MAGIC_VALUE_V2) {
+            if (isTransactional)
+                throw new IllegalArgumentException("Transactional records are not supported for magic " + magic);
+            if (isControlBatch)
+                throw new IllegalArgumentException("Control records are not supported for magic " + magic);
+            if (compressionType == CompressionType.ZSTD)
+                throw new IllegalArgumentException("ZStandard compression is not supported for magic " + magic);
+            if (deleteHorizonMs != RecordBatch.NO_TIMESTAMP)
+                throw new IllegalArgumentException("Delete horizon timestamp is not supported for magic " + magic);
+        }
+        ...
+        this.appendStream = new DataOutputStream(compressionType.wrapForOutput(this.bufferStream, magic));
+        ...
+    }
+}
+
+```
+
+可以看到，`appendStream` 是用于追加消息到内存 buffer 的，直接采用的 `compressionType` 的压缩逻辑来构建写入流的，如果此处 `compressionType`属于非 `none` 的有效压缩类型，则会产生压缩。此外，从上面 `magic` 的判断逻辑可知，消息的时间戳类型是从大版本 `V1` 开始支持的；而事务消息、控制消息、Zstd 压缩和 `deleteHorizonMs`都是从 `V2` 才开始支持的。这里的 `V1`、`V2` 对应消息格式的版本，同时和 Kafka 版本号中的大版本号也是对应的，除了 3.x.y 的版本，因为目前 `magic` 的最大取值才到 2。
+
+## DefaultRecordBatch
+
+```java
+public class DefaultRecordBatch extends AbstractRecordBatch implements MutableRecordBatch {
+    ...
+    @Override
+    public Iterator<Record> iterator() {
+        if (count() == 0)
+            return Collections.emptyIterator();
+
+        if (!isCompressed())
+            return uncompressedIterator();
+
+        // for a normal iterator, we cannot ensure that the underlying compression stream is closed,
+        // so we decompress the full record set here. Use cases which call for a lower memory footprint
+        // can use `streamingIterator` at the cost of additional complexity
+        try (CloseableIterator<Record> iterator = compressedIterator(BufferSupplier.NO_CACHING, false)) {
+            List<Record> records = new ArrayList<>(count());
+            while (iterator.hasNext())
+                records.add(iterator.next());
+            return records.iterator();
+        }
+    }
+    ...
+}
+```
+
+`RecordBatch` 是 clients 端批量消息的载体，
 
