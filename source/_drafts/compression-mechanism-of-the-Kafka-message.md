@@ -2,7 +2,8 @@
 title: Kafka消息的压缩机制
 tags:
   - Kafka系列
-  - message
+  - 消息队列
+  - 源码
 categories:
   - Kafka
 date: 2022-04-30 22:00:00
@@ -124,9 +125,21 @@ object BrokerCompressionCodec {
 
 #### broker 级别
 
-
+要配置 broker 级别的压缩类型，可通过 `configs` 命令修改 `compression.type` 配置项取值。此处是否需要重启 broker 取决于 Kafak 的版本，在 1.1.0 之前，任何配置项的改动都需要重启 broker 才生效，而从 1.1.0 版本开始，Kafka 引入了动态 broker 参数，将配置项分为三类：`read-only`、`per-broker` 和 `cluster-wide`，第一类跟原来一样需重启才生效，而后面两类都是动态生效的，只是影响范围不同，关于 Kafka 动态参数，以后单开博文介绍。从 [官网](https://kafka.apache.org/documentation/#brokerconfigs_compression.type) 可以看到，`compression.type` 是属于 `cluster-wide` 的，如果是 1.1.0 及之后的版本，则无需重启 broker。
 
 #### topic 级别
+
+topic 的配置分为两部分，一部分是 topic 特有的，如 partitions 等，另一部分则是默认采用 broker 配置，但也可以覆盖。如果要定义 topic 级别的压缩，可以在 topic 创建时通过 --config 选项覆盖配置项 `compression.type` 的取值，命令如下：
+
+```shell
+sh bin/kafka-topics.sh --create --topic my-topic --replication-factor 1 --partitions 1 --config compression.type=snappy
+```
+
+当然也可以通过 `configs` 命令修改 topic 的 `compression.type` 取值，命令如下：
+
+```shell
+bin/kafka-configs.sh --entity-type topics --entity-name my-topic --alter --add-config compression.type=snappy
+```
 
 ## 在 Producer 端压缩
 
@@ -177,7 +190,7 @@ producer 端发生压缩的唯一条件就是在 producer 端为属性 `compress
 
 对于 broker 端，产生压缩的情况就复杂得多，这不仅取决于 broker 端自身的压缩编码 `targetCodec` 是否是需要压缩的类型，还取决于 `targetCodec` 跟 producer 端的 `sourceCodec` 是否相同，除此之外，还跟消息格式的 `magic` 版本有关，关于 `magic` 版本此处不做展开，之后会开专门的博文讨论这个。
 
-直接看代码，broker 端的消息持久化是由 `UnifiedLog` 负责的，核心入口是 `append` 方法。
+直接看代码，broker 端的消息读写是由 `UnifiedLog` 负责的，消息持久化的核心入口是 `append` 方法，代码如下：
 
 ```scala
 class UnifiedLog(...) extends Logging with KafkaMetricsGroup {
@@ -230,87 +243,12 @@ class UnifiedLog(...) extends Logging with KafkaMetricsGroup {
               case e: IOException =>
                 throw new KafkaException(s"Error validating messages while appending to log $name", e)
             }
-            validRecords = validateAndOffsetAssignResult.validatedRecords
-            appendInfo.maxTimestamp = validateAndOffsetAssignResult.maxTimestamp
-            appendInfo.offsetOfMaxTimestamp = validateAndOffsetAssignResult.shallowOffsetOfMaxTimestamp
-            appendInfo.lastOffset = offset.value - 1
-            appendInfo.recordConversionStats = validateAndOffsetAssignResult.recordConversionStats
-            if (config.messageTimestampType == TimestampType.LOG_APPEND_TIME)
-              appendInfo.logAppendTime = now
-
-            // re-validate message sizes if there's a possibility that they have changed (due to re-compression or message
-            // format conversion)
-            if (!ignoreRecordSize && validateAndOffsetAssignResult.messageSizeMaybeChanged) {
-              validRecords.batches.forEach { batch =>
-                if (batch.sizeInBytes > config.maxMessageSize) {
-                  // we record the original message set size instead of the trimmed size
-                  // to be consistent with pre-compression bytesRejectedRate recording
-                  brokerTopicStats.topicStats(topicPartition.topic).bytesRejectedRate.mark(records.sizeInBytes)
-                  brokerTopicStats.allTopicsStats.bytesRejectedRate.mark(records.sizeInBytes)
-                  throw new RecordTooLargeException(s"Message batch size is ${batch.sizeInBytes} bytes in append to" +
-                    s"partition $topicPartition which exceeds the maximum configured size of ${config.maxMessageSize}.")
-                }
-              }
-            }
+            ...
           } else {
             // we are taking the offsets we are given
-            if (!appendInfo.offsetsMonotonic)
-              throw new OffsetsOutOfOrderException(s"Out of order offsets found in append to $topicPartition: " +
-                records.records.asScala.map(_.offset))
-
-            if (appendInfo.firstOrLastOffsetOfFirstBatch < localLog.logEndOffset) {
-              // we may still be able to recover if the log is empty
-              // one example: fetching from log start offset on the leader which is not batch aligned,
-              // which may happen as a result of AdminClient#deleteRecords()
-              val firstOffset = appendInfo.firstOffset match {
-                case Some(offsetMetadata) => offsetMetadata.messageOffset
-                case None => records.batches.asScala.head.baseOffset()
-              }
-
-              val firstOrLast = if (appendInfo.firstOffset.isDefined) "First offset" else "Last offset of the first batch"
-              throw new UnexpectedAppendOffsetException(
-                s"Unexpected offset in append to $topicPartition. $firstOrLast " +
-                  s"${appendInfo.firstOrLastOffsetOfFirstBatch} is less than the next offset ${localLog.logEndOffset}. " +
-                  s"First 10 offsets in append: ${records.records.asScala.take(10).map(_.offset)}, last offset in" +
-                  s" append: ${appendInfo.lastOffset}. Log start offset = $logStartOffset",
-                firstOffset, appendInfo.lastOffset)
-            }
+            ...
           }
-
-          // update the epoch cache with the epoch stamped onto the message by the leader
-          validRecords.batches.forEach { batch =>
-            if (batch.magic >= RecordBatch.MAGIC_VALUE_V2) {
-              maybeAssignEpochStartOffset(batch.partitionLeaderEpoch, batch.baseOffset)
-            } else {
-              // In partial upgrade scenarios, we may get a temporary regression to the message format. In
-              // order to ensure the safety of leader election, we clear the epoch cache so that we revert
-              // to truncation by high watermark after the next leader election.
-              leaderEpochCache.filter(_.nonEmpty).foreach { cache =>
-                warn(s"Clearing leader epoch cache after unexpected append with message format v${batch.magic}")
-                cache.clearAndFlush()
-              }
-            }
-          }
-
-          // check messages set size may be exceed config.segmentSize
-          if (validRecords.sizeInBytes > config.segmentSize) {
-            throw new RecordBatchTooLargeException(s"Message batch size is ${validRecords.sizeInBytes} bytes in append " +
-              s"to partition $topicPartition, which exceeds the maximum configured segment size of ${config.segmentSize}.")
-          }
-
-          // maybe roll the log if this segment is full
-          val segment = maybeRoll(validRecords.sizeInBytes, appendInfo)
-
-          val logOffsetMetadata = LogOffsetMetadata(
-            messageOffset = appendInfo.firstOrLastOffsetOfFirstBatch,
-            segmentBaseOffset = segment.baseOffset,
-            relativePositionInSegment = segment.size)
-
-          // now that we have valid records, offsets assigned, and timestamps updated, we need to
-          // validate the idempotent/transactional state of the producers and collect some metadata
-          val (updatedProducers, completedTxns, maybeDuplicate) = analyzeAndValidateProducerState(
-            logOffsetMetadata, validRecords, origin)
-
+          ...
           maybeDuplicate match {
             case Some(duplicate) =>
               ...
@@ -332,13 +270,188 @@ class UnifiedLog(...) extends Logging with KafkaMetricsGroup {
 }
 ```
 
+可以看到，先是采用 `analyzeAndValidateRecords` 在 `recordBatch` 的维度对批量消息整体做校验，比如 CRC、size等，不会细化到单条消息，所以这里不会涉及解压。这一步通过之后，会采用 `LogValidator.validateMessagesAndAssignOffsets` 对 `recordBatch`以及单条消息做进一步验证并为 `recordBatch` 分配 `offset`，**该过程可能涉及解压**。完成这一步之后，调用 `localLog.append` 方法将消息追加到本地日志，这一步才是真正的落盘。我们继续关注可能发生解压的 `LogValidator` 部分，代码如下：
 
+```scala
+private[log] object LogValidator extends Logging {
+  private[log] def validateMessagesAndAssignOffsets(records: MemoryRecords,
+                                                    topicPartition: TopicPartition,
+                                                    offsetCounter: LongRef,
+                                                    time: Time,
+                                                    now: Long,
+                                                    sourceCodec: CompressionCodec,
+                                                    targetCodec: CompressionCodec,
+                                                    compactedTopic: Boolean,
+                                                    magic: Byte,
+                                                    timestampType: TimestampType,
+                                                    timestampDiffMaxMs: Long,
+                                                    partitionLeaderEpoch: Int,
+                                                    origin: AppendOrigin,
+                                                    interBrokerProtocolVersion: ApiVersion,
+                                                    brokerTopicStats: BrokerTopicStats,
+                                                    requestLocal: RequestLocal): ValidationAndOffsetAssignResult = {
+    if (sourceCodec == NoCompressionCodec && targetCodec == NoCompressionCodec) {
+      // check the magic value
+      if (!records.hasMatchingMagic(magic))
+        convertAndAssignOffsetsNonCompressed(records, topicPartition, offsetCounter, compactedTopic, time, now, timestampType,
+          timestampDiffMaxMs, magic, partitionLeaderEpoch, origin, brokerTopicStats)
+      else
+        // Do in-place validation, offset assignment and maybe set timestamp
+        assignOffsetsNonCompressed(records, topicPartition, offsetCounter, now, compactedTopic, timestampType, timestampDiffMaxMs,
+          partitionLeaderEpoch, origin, magic, brokerTopicStats)
+    } else {
+      validateMessagesAndAssignOffsetsCompressed(records, topicPartition, offsetCounter, time, now, sourceCodec,
+        targetCodec, compactedTopic, magic, timestampType, timestampDiffMaxMs, partitionLeaderEpoch, origin,
+        interBrokerProtocolVersion, brokerTopicStats, requestLocal)
+    }
+  }
+  ...
+}
+```
+
+从上可知，当 broker 端配置的压缩编码 `targetCodec` 与所收到的批量消息的压缩编码 `sourceCodec` 都为 `none` 即不压缩时，会再检查消息的格式版本，如果与 broker 端配置的消息版本不同，则需要先将原批量消息转换为目标版本 `magic` 对应格式的新批量消息，然后再在新批量消息中分配 `offset`；否则直接在原批量消息中就地分配 `offset`，此过程均不涉及解压缩。这里稍微解释下分配 `offset` 的逻辑，我们知道在 Kafka 中 `offset` 是 `partition` 下每条消息的唯一标识，consumer 端也是根据 `offset` 来追踪消费进度，而 `offset` 的生成和写入则是在 broker 端，就是此处提到的 `offset` 分配。理论上说，broker 需要为每条消息都分配一个 `offset` 的，但在实践中，因为用的是 `recordBatch`，内部消息是顺序排列的且总记录数是知道的，而 `recordBatch` 本身会记录 `baseOffset` ，故通常只需设置 `lastOffset`即可。唯一的例外是，当因消息格式转换或解压缩而需要创建新的 `recordBatch`时，会调用 `memoryRecordsBuilder` 的 `appendWithOffset` 方法为每一条消息记录分配 `offset`。
+
+当 `targetCodec` 与 `sourceCodec` 至少有一个不为 `none` 即需要压缩时，情况就复杂一些，具体逻辑都在 `validateMessagesAndAssignOffsetsCompressed`方法中，
+
+```scala
+private[log] object LogValidator extends Logging {
+  ...
+  def validateMessagesAndAssignOffsetsCompressed(...): ValidationAndOffsetAssignResult = {
+    ...
+    // No in place assignment situation 1
+    var inPlaceAssignment = sourceCodec == targetCodec
+
+    var maxTimestamp = RecordBatch.NO_TIMESTAMP
+    val expectedInnerOffset = new LongRef(0)
+    val validatedRecords = new mutable.ArrayBuffer[Record]
+
+    var uncompressedSizeInBytes = 0
+
+    // Assume there's only one batch with compressed memory records; otherwise, return InvalidRecordException
+    // One exception though is that with format smaller than v2, if sourceCodec is noCompression, then each batch is actually
+    // a single record so we'd need to special handle it by creating a single wrapper batch that includes all the records
+    val firstBatch = getFirstBatchAndMaybeValidateNoMoreBatches(records, sourceCodec)
+
+    // No in place assignment situation 2 and 3: we only need to check for the first batch because:
+    //  1. For most cases (compressed records, v2, for example), there's only one batch anyways.
+    //  2. For cases that there may be multiple batches, all batches' magic should be the same.
+    if (firstBatch.magic != toMagic || toMagic == RecordBatch.MAGIC_VALUE_V0)
+      inPlaceAssignment = false
+
+    // Do not compress control records unless they are written compressed
+    if (sourceCodec == NoCompressionCodec && firstBatch.isControlBatch)
+      inPlaceAssignment = true
+
+    records.batches.forEach { batch =>
+      validateBatch(topicPartition, firstBatch, batch, origin, toMagic, brokerTopicStats)
+      uncompressedSizeInBytes += AbstractRecords.recordBatchHeaderSizeInBytes(toMagic, batch.compressionType())
+
+      // if we are on version 2 and beyond, and we know we are going for in place assignment,
+      // then we can optimize the iterator to skip key / value / headers since they would not be used at all
+      val recordsIterator = if (inPlaceAssignment && firstBatch.magic >= RecordBatch.MAGIC_VALUE_V2)
+        batch.skipKeyValueIterator(requestLocal.bufferSupplier)
+      else
+        batch.streamingIterator(requestLocal.bufferSupplier)
+
+      try {
+        val recordErrors = new ArrayBuffer[ApiRecordError](0)
+        // this is a hot path and we want to avoid any unnecessary allocations.
+        var batchIndex = 0
+        recordsIterator.forEachRemaining { record =>
+          val expectedOffset = expectedInnerOffset.getAndIncrement()
+          val recordError = validateRecordCompression(batchIndex, record).orElse {
+            validateRecord(batch, topicPartition, record, batchIndex, now,
+              timestampType, timestampDiffMaxMs, compactedTopic, brokerTopicStats).orElse {
+              if (batch.magic > RecordBatch.MAGIC_VALUE_V0 && toMagic > RecordBatch.MAGIC_VALUE_V0) {
+                if (record.timestamp > maxTimestamp)
+                  maxTimestamp = record.timestamp
+
+                // Some older clients do not implement the V1 internal offsets correctly.
+                // Historically the broker handled this by rewriting the batches rather
+                // than rejecting the request. We must continue this handling here to avoid
+                // breaking these clients.
+                if (record.offset != expectedOffset)
+                  inPlaceAssignment = false
+              }
+              None
+            }
+          }
+
+          recordError match {
+            case Some(e) => recordErrors += e
+            case None =>
+              uncompressedSizeInBytes += record.sizeInBytes()
+              validatedRecords += record
+          }
+         batchIndex += 1
+        }
+        processRecordErrors(recordErrors)
+      } finally {
+        recordsIterator.close()
+      }
+    }
+
+    if (!inPlaceAssignment) {
+      val (producerId, producerEpoch, sequence, isTransactional) = {
+        // note that we only reassign offsets for requests coming straight from a producer. For records with magic V2,
+        // there should be exactly one RecordBatch per request, so the following is all we need to do. For Records
+        // with older magic versions, there will never be a producer id, etc.
+        val first = records.batches.asScala.head
+        (first.producerId, first.producerEpoch, first.baseSequence, first.isTransactional)
+      }
+      buildRecordsAndAssignOffsets(toMagic, offsetCounter, time, timestampType, CompressionType.forId(targetCodec.codec),
+        now, validatedRecords, producerId, producerEpoch, sequence, isTransactional, partitionLeaderEpoch,
+        uncompressedSizeInBytes)
+    } else {
+      // we can update the batch only and write the compressed payload as is;
+      // again we assume only one record batch within the compressed set
+      val batch = records.batches.iterator.next()
+      val lastOffset = offsetCounter.addAndGet(validatedRecords.size) - 1
+
+      batch.setLastOffset(lastOffset)
+
+      if (timestampType == TimestampType.LOG_APPEND_TIME)
+        maxTimestamp = now
+
+      if (toMagic >= RecordBatch.MAGIC_VALUE_V1)
+        batch.setMaxTimestamp(timestampType, maxTimestamp)
+
+      if (toMagic >= RecordBatch.MAGIC_VALUE_V2)
+        batch.setPartitionLeaderEpoch(partitionLeaderEpoch)
+
+      val recordConversionStats = new RecordConversionStats(uncompressedSizeInBytes, 0, 0)
+      ValidationAndOffsetAssignResult(validatedRecords = records,
+        maxTimestamp = maxTimestamp,
+        shallowOffsetOfMaxTimestamp = lastOffset,
+        messageSizeMaybeChanged = false,
+        recordConversionStats = recordConversionStats)
+    }
+  }
+  ...
+}
+```
+
+可以看到，`inPlaceAssignment` 是用于标识是否可以原地修改 `recordBatch` 来分配 `offset`，有三种情况不能原地修改：
+
+* sourceCodec 和 targetCodec 不同，这个比较好理解，编码不同，构建目标 payload 时原 `recordBatch`  自然不能复用。
+* 目标消息格式版本 `magic` 与 broker 接收到的 `recordBatch` 的 `magic` 不同，此时需要消息格式转换，需要构建新的 `recordBatch`，这个跟第一种情况是一样的，无法复用原 `recordBatch`。
+* 目标消息格式版本为 `V0`，因为老版本 `V0` 格式的消息，需要为每条消息重新分配绝对 `offset`，无法复用原 `recordBatch`。
+
+此时，`inPlaceAssignment` 为 false，直接走 `buildRecordsAndAssignOffsets` 逻辑来构建新的 `recordBatch`，此时是否压缩取决于 `targetCodec`，如果不为`none`，则此处会按照 `targetCodec` 编码进行压缩。
+
+除了上述三种情况之外，都是可以原地修改，此时可以直接复用原 `recordBatch`来构建目标消息的 payload，此时不存在压缩处理。
 
 ## 何处会解压
 
 可能发生解压的地方依然是两处：consumer 端和 broker 端。
 
+### consumer 端
 
+consumer 端发生解压的唯一条件就是从 broker 端拉取到的消息是带压缩的。此时，consumer 会根据 `recordBatch` 中 `compressionType` 来对消息进行解压，具体细节后面源码分析部分会讲。
+
+### broker 端
+
+broker 端是否发生解压取决于 producer 发过来的批量消息 `recordBatch` 是否是压缩的：如果 producer 开启了压缩，则会发生解压，否则不会。原因简单说下，在 broker 端持久化消息前，会对消息做各种验证，此时必然会迭代 `recordBatch`，而在迭代的过程中，会直接采用 `recordBatch` 上的 `compressionType` 对消息字节流进行处理，是否解压取决于 `compressionType` 是否是压缩类型。关于这点，可以在 `LogValidator` 的 `validateMessagesAndAssignOffsets` 方法实现中可以看到，在 `convertAndAssignOffsetsNonCompressed`、`assignOffsetsNonCompressed` 和 `validateMessagesAndAssignOffsetsCompressed` 三个不同的分支中，都会看到 `records.batches.forEach {...}` 的身影，而在后面的源码分析中会发现，在 `recordBatch` 的迭代器逻辑中，直接采用的 `compressionType` 的解压逻辑对消息字节流读取的。也就是说，如果 `recordBatch` 是压缩的 ，只要对其进行了迭代访问，则会自动触发解压逻辑。
 
 # 压缩和解压原理
 
@@ -535,7 +648,7 @@ public class MemoryRecordsBuilder implements AutoCloseable {
 
 ```
 
-可以看到，`appendStream` 是用于追加消息到内存 buffer 的，直接采用的 `compressionType` 的压缩逻辑来构建写入流的，如果此处 `compressionType`属于非 `none` 的有效压缩类型，则会产生压缩。此外，从上面 `magic` 的判断逻辑可知，消息的时间戳类型是从大版本 `V1` 开始支持的；而事务消息、控制消息、Zstd 压缩和 `deleteHorizonMs`都是从 `V2` 才开始支持的。这里的 `V1`、`V2` 对应消息格式的版本，同时和 Kafka 版本号中的大版本号也是对应的，除了 3.x.y 的版本，因为目前 `magic` 的最大取值才到 2。
+可以看到，`appendStream` 是用于追加消息到内存 buffer 的，直接采用的 `compressionType` 的压缩逻辑来构建写入流的，如果此处 `compressionType`属于非 `none` 的有效压缩类型，则会产生压缩。此外，从上面 `magic` 的判断逻辑可知，消息的时间戳类型是从大版本 `V1` 开始支持的；而事务消息、控制消息、Zstd 压缩和 `deleteHorizonMs`都是从 `V2` 才开始支持的。这里的 `V1`、`V2` 对应消息格式的版本，其中 `V1` 是从 0.10.0 版本开始引入的，在此之前都是 `V0` 版本，而 `V2` 则是从 0.11.0 版本开始引入，直到现在的最新版依然是 `V2`。
 
 从 `close()` 方法可以看出，`MemoryRecordsBuilder` 在构建 `memoryRecords` 时，会根据消息格式的版本高低，写入不同的 Header。对于新版消息，在 `writeDefaultBatchHeader` 方法中直接调用 `DefaultRecordBatch.writeHeader(...)`写入新版消息特定的 Header；而对于老版消息，则是在 `writeLegacyCompressedWrapperHeader`方法中调用 `AbstractLegacyRecordBatch.writeHeader`  和 `LegacyRecord.writeCompressedRecordHeader` 写入老版消息的 Header。虽然 Header 的格式各不相同，但我们在两种 Header 中都可以看到 `compressionType` 的身影，以此可见，Kafka 是允许多种版本的消息共存，压缩与非压缩消息的共存，因为这些信息是保存在 `recordBatch` 上的，是批量消息级别。
 
@@ -566,7 +679,7 @@ public class DefaultRecordBatch extends AbstractRecordBatch implements MutableRe
 }
 ```
 
-`RecordBatch` 是表示批量消息的接口，对于老版格式的消息（版本 0 和 1），如果没有压缩，只会包含单条消息，否则可以包含多条；而新版格式消息（版本 2及以上）无论是否压缩，都是通常包含多条消息。且该接口中有一个 `compressionType()`方法来标识该 batch 的压缩类型，它会作为读消息时的压缩判断依据。而上面的 `DefaultRecordBatch` 则是该接口的针对新版本格式消息的默认实现，它也实现了 `Iterable<Record>` 接口，因而 `iterator()` 是访问批量消息的核心逻辑，当 `compressionType()` 返回 `none` 时，表示不压缩，直接返回非压缩迭代器，此处跳过，当有压缩时，走的是压缩迭代器，具体实现如下，
+`RecordBatch` 是表示批量消息的接口，对于老版格式的消息（版本 0 和 1），如果没有压缩，只会包含单条消息，否则可以包含多条；而新版格式消息（版本 2及以上）无论是否压缩，都是通常包含多条消息。且该接口中有一个 `compressionType()`方法来标识该 batch 的压缩类型，它会作为读消息时解压的判断依据。而上面的 `DefaultRecordBatch` 则是该接口的针对新版本格式消息的默认实现，它也实现了 `Iterable<Record>` 接口，因而 `iterator()` 是访问批量消息的核心逻辑，当 `compressionType()` 返回 `none` 时，表示不压缩，直接返回非压缩迭代器，此处跳过，当有压缩时，走的是压缩迭代器，具体实现如下，
 
 ```java
     public DataInputStream recordInputStream(BufferSupplier bufferSupplier) {
@@ -591,7 +704,7 @@ public class DefaultRecordBatch extends AbstractRecordBatch implements MutableRe
     }
 ```
 
-我们可以看到，`compressedIterator()` 在构造 Stream 迭代器之前，调用了 `recordInputStream(...)`，该方法中通过 `compressionType` 的压缩逻辑对原数据进行了压缩。
+我们可以看到，`compressedIterator()` 在构造 Stream 迭代器之前，调用了 `recordInputStream(...)`，该方法中通过 `compressionType` 的解压逻辑对原数据进行了解压。
 
 ## AbstractLegacyRecordBatch
 
@@ -653,4 +766,4 @@ public abstract class AbstractLegacyRecordBatch extends AbstractRecordBatch impl
 }
 ```
 
-`AbstractLegacyRecordBatch` 跟前面的 `DefaultRecordBatch` 大同小异，同样也是 `iterator()` 入口，当开启了压缩时，返回压缩迭代器 `DeepRecordsIterator`，只是名字不同而已，迭代器内部依然是直接通过 `compressionType` 的压缩逻辑对数据流进行压缩。
+`AbstractLegacyRecordBatch` 跟前面的 `DefaultRecordBatch` 大同小异，同样也是 `iterator()` 入口，当开启了压缩时，返回压缩迭代器 `DeepRecordsIterator`，只是名字不同而已，迭代器内部依然是直接通过 `compressionType` 的解压逻辑对数据流进行解压。
