@@ -9,7 +9,10 @@ categories:
 date: 2022-04-30 22:00:00
 ---
 
-最近在做 AWS cost saving 的事情，对于 Kafka 消息集群，计划通过压缩消息来减少消息存储所占空间，从而达到减少 cost 的目的。本文将结合源码从 Kafka 支持的消息压缩类型、何时需要压缩、如何开启压缩、何处进行压缩以及压缩原理来总结 Kafka 整个压缩机制。文中所涉及源码部分都来自于 Kafka 当前最新的 3.3.0-SNAPSHOT 版本。
+
+最近在做 AWS cost saving 的事情，对于 Kafka 消息集群，计划通过压缩消息来减少消息存储所占空间，从而达到减少 cost 的目的。本文将结合源码从 Kafka 支持的消息压缩类型、何时需要压缩、如何开启压缩、何处进行解压缩以及压缩原理来总结 Kafka 整个消息压缩机制。文中所涉及源码部分均来自于 Kafka 当前最新的 3.3.0-SNAPSHOT 版本。
+
+<!--more-->
 
 # Kafka支持的消息压缩类型
 
@@ -21,11 +24,11 @@ Kafka [官网](https://cwiki.apache.org/confluence/display/KAFKA/Compression)有
 
 > 此为 Kafka 中端到端的块压缩功能。如果启用，数据将由 producer 压缩，以压缩格式写入服务器，并由 consumer 解压缩。压缩将提高 consumer 的吞吐量，但需付出一定的解压成本。这在跨数据中心镜像数据时尤其有用。
 
-也就是说，Kafka 的消息压缩是指将消息本身采用特定的压缩算法进行压缩并存储，待消费时再解压缩。
+也就是说，Kafka 的消息压缩是指将消息本身采用特定的压缩算法进行压缩并存储，待消费时再解压。
 
 我们知道压缩就是用时间换空间，其基本理念是基于重复，将重复的片段编码为字典，字典的 key 为重复片段，value 为更短的代码，比如序列号，然后将原始内容中的片段用代码表示，达到缩短内容的效果，压缩后的内容则由字典和代码序列两部分组成。解压时根据字典和代码序列可无损地还原为原始内容。注：有损压缩不在此次讨论范围。
 
-通常来讲，重复越多，压缩效果越好。JSON是 Kafka 消息中常用的序列化格式，单条消息内可能并没有多少重复片段，但如果是批量消息，则会有大量重复的字段名，批量中消息越多，则重复越多，这也是为什么 Kafka 更偏向块压缩，而不是单条消息压缩。
+通常来讲，重复越多，压缩效果越好。比如 JSON 是 Kafka 消息中常用的序列化格式，单条消息内可能并没有多少重复片段，但如果是批量消息，则会有大量重复的字段名，批量中消息越多，则重复越多，这也是为什么 Kafka 更偏向块压缩，而不是单条消息压缩。
 
 ## 消息压缩类型
 
@@ -40,7 +43,7 @@ Kafka [官网](https://cwiki.apache.org/confluence/display/KAFKA/Compression)有
 
 从上表可知，Snappy 在 CPU 使用率、压缩比、压缩速度和网络带宽使用率之间实现良好的平衡，我们最终也是采用的该类型进行压缩试点。这里值得一提的是，Zstd 是 Facebook 于 2016 年开源的新压缩算法，压缩率和压缩性能都不错，具有与 Snappy（Google 杰作）相似的特性，直到 Kafka 的 2.1.0 版本才引入支持。
 
-针对这几种压缩本身的性能，Zstd [GitHub 官方](https://github.com/facebook/zstd)公布了压测对比结果如下，
+针对这几种压缩本身的性能，Zstd [GitHub 官方](https://github.com/facebook/zstd) 公布了压测对比结果如下，
 
 | Compressor name                        | Ratio | Compression | Decompress. |
 | -------------------------------------- | ----- | ----------- | ----------- |
@@ -64,7 +67,7 @@ Kafka [官网](https://cwiki.apache.org/confluence/display/KAFKA/Compression)有
 
 * 压缩带来的磁盘空间和带宽节省远大于额外的 CPU 代价，这样的压缩是值得的。
 * 数据量足够大且具重复性。消息压缩是批量的，低频的数据流可能都无法填满一个批量，会影响压缩比。数据重复性越高，往往压缩效果越好，例如 JSON、XML 等结构化数据；但若数据不具重复性，例如文本都是唯一的 md5 或 UUID 之类，违背了压缩的重复性前提，压缩效果可能不会理想。
-* 系统对消息分发的延迟没有严苛要求，可容忍轻微延迟增大。
+* 系统对消息分发的延迟没有严苛要求，可容忍轻微的延迟增长。
 
 # 如何开启压缩
 
@@ -117,15 +120,15 @@ object BrokerCompressionCodec {
 }
 ```
 
-`sourceCodec` 为 `recordBatch` 上的编码，即表示从 producer 端发来的这批消息的编码。 `targetCodec` 为 broker 端用于存储消息最终的目标编码，从函数 `getTargetCompressionCodec` 可以看出是结合 broker 端的 `compressionType` 和 producer 端的 `producerCompression` 综合判断的：当 `compressionType` 为 `producer` 时直接采用 producer 端的 `producerCompression`，否则就采用 broker 端自身的编码设置 `compressionType`。从 `brokerCompressionCodecs` 的取值可看出，`compression.type` 的可选值为 `[uncompressed, zstd, lz4, snappy, gzip, producer]`。其中 `uncompressed` 与 `none` 是等价的，`producer` 不用多说，其余四个则是标准的压缩类型。
+`sourceCodec` 为 `recordBatch` 上的编码，即表示从 producer 端发来的这批消息的编码。 `targetCodec` 为 broker 端配置的压缩编码，从函数 `getTargetCompressionCodec` 可以看出最终存储消息的目标编码是结合 broker 端的 `compressionType` 和 producer 端的 `producerCompression` 综合判断的：当 `compressionType` 为 `producer` 时直接采用 producer 端的 `producerCompression`，否则就采用 broker 端自身的编码设置 `compressionType`。从 `brokerCompressionCodecs` 的取值可看出，`compression.type` 的可选值为 `[uncompressed, zstd, lz4, snappy, gzip, producer]`。其中 `uncompressed` 与 `none` 是等价的，`producer` 不用多说，其余四个则是标准的压缩类型。
 
 ### broker 和 topic 两个级别
 
-在 broker 端的压缩配置分为两个级别：全局的 broker 级别 和 局部的topic 级别。顾名思义，如果配置的是 broker 级别，则对于该 Kafka 集群中所有的 topic 都是生效的。但如果 topic 级别配置了自己的压缩类型，则会覆盖 broker 全局的配置，以 topic 自己配置的为准。 
+在 broker 端的压缩配置分为两个级别：全局的 broker 级别 和 局部的 topic 级别。顾名思义，如果配置的是 broker 级别，则对于该 Kafka 集群中所有的 topic 都是生效的。但如果 topic 级别配置了自己的压缩类型，则会覆盖 broker 全局的配置，以 topic 自己配置的为准。 
 
 #### broker 级别
 
-要配置 broker 级别的压缩类型，可通过 `configs` 命令修改 `compression.type` 配置项取值。此处是否需要重启 broker 取决于 Kafak 的版本，在 1.1.0 之前，任何配置项的改动都需要重启 broker 才生效，而从 1.1.0 版本开始，Kafka 引入了动态 broker 参数，将配置项分为三类：`read-only`、`per-broker` 和 `cluster-wide`，第一类跟原来一样需重启才生效，而后面两类都是动态生效的，只是影响范围不同，关于 Kafka 动态参数，以后单开博文介绍。从 [官网](https://kafka.apache.org/documentation/#brokerconfigs_compression.type) 可以看到，`compression.type` 是属于 `cluster-wide` 的，如果是 1.1.0 及之后的版本，则无需重启 broker。
+要配置 broker 级别的压缩类型，可通过 `configs` 命令修改 `compression.type` 配置项取值。此处要使修改生效，是否需要重启 broker 取决于 Kafak 的版本，在 1.1.0 之前，任何配置项的改动都需要重启 broker 才生效，而从 1.1.0 版本开始，Kafka 引入了动态 broker 参数，将配置项分为三类：`read-only`、`per-broker` 和 `cluster-wide`，第一类跟原来一样需重启才生效，而后面两类都是动态生效的，只是影响范围不同，关于 Kafka 动态参数，以后单开博文介绍。从 [官网](https://kafka.apache.org/documentation/#brokerconfigs_compression.type) 可以看到，`compression.type` 是属于 `cluster-wide` 的，如果是 1.1.0 及之后的版本，则无需重启 broker。
 
 #### topic 级别
 
@@ -145,7 +148,7 @@ bin/kafka-configs.sh --entity-type topics --entity-name my-topic --alter --add-c
 
 ### compression.type 属性
 
-跟 broker 端一样，producer 端的压缩配置属性依然是 `compression.type`，只不过默认值和可选值有所不同。默认值为 `none`，表示不压缩，可选值为枚举类 `CompressionType` 中的 `name` 列表。
+跟 broker 端一样，producer 端的压缩配置属性依然是 `compression.type`，只不过默认值和可选值有所不同。默认值为 `none`，表示不压缩，可选值为枚举类 `CompressionType` 中所有实例对应 `name` 的列表。
 
 ### 开启压缩的方式
 
@@ -188,9 +191,7 @@ producer 端发生压缩的唯一条件就是在 producer 端为属性 `compress
 
 ### broker 端
 
-对于 broker 端，产生压缩的情况就复杂得多，这不仅取决于 broker 端自身的压缩编码 `targetCodec` 是否是需要压缩的类型，还取决于 `targetCodec` 跟 producer 端的 `sourceCodec` 是否相同，除此之外，还跟消息格式的 `magic` 版本有关，关于 `magic` 版本此处不做展开，之后会开专门的博文讨论这个。
-
-直接看代码，broker 端的消息读写是由 `UnifiedLog` 负责的，消息持久化的核心入口是 `append` 方法，代码如下：
+对于 broker 端，产生压缩的情况就复杂得多，这不仅取决于 broker 端自身的压缩编码 `targetCodec` 是否是需要压缩的类型，还取决于 `targetCodec` 跟 producer 端的 `sourceCodec` 是否相同，除此之外，还跟消息格式的 `magic` 版本有关。直接看代码，broker 端的消息读写是由 `UnifiedLog` 负责的，消息持久化的核心入口是 `append` 方法，代码如下：
 
 ```scala
 class UnifiedLog(...) extends Logging with KafkaMetricsGroup {
@@ -270,7 +271,7 @@ class UnifiedLog(...) extends Logging with KafkaMetricsGroup {
 }
 ```
 
-可以看到，先是采用 `analyzeAndValidateRecords` 在 `recordBatch` 的维度对批量消息整体做校验，比如 CRC、size等，不会细化到单条消息，所以这里不会涉及解压。这一步通过之后，会采用 `LogValidator.validateMessagesAndAssignOffsets` 对 `recordBatch`以及单条消息做进一步验证并为 `recordBatch` 分配 `offset`，**该过程可能涉及解压**。完成这一步之后，调用 `localLog.append` 方法将消息追加到本地日志，这一步才是真正的落盘。我们继续关注可能发生解压的 `LogValidator` 部分，代码如下：
+可以看到，先是采用 `analyzeAndValidateRecords` 在 `recordBatch` 的维度对批量消息整体做校验，比如 CRC、size 等，不会细化到单条消息，所以这里不会涉及解压。这一步通过之后，会采用 `LogValidator.validateMessagesAndAssignOffsets` 对 `recordBatch`以及单条消息做进一步验证并为消息分配 `offset`，**该过程可能涉及解压**。完成这一步之后，调用 `localLog.append` 方法将消息追加到本地日志，这一步才是真正的落盘。我们继续关注可能发生解压的 `LogValidator` 部分，代码如下：
 
 ```scala
 private[log] object LogValidator extends Logging {
@@ -309,7 +310,7 @@ private[log] object LogValidator extends Logging {
 }
 ```
 
-从上可知，当 broker 端配置的压缩编码 `targetCodec` 与所收到的批量消息的压缩编码 `sourceCodec` 都为 `none` 即不压缩时，会再检查消息的格式版本，如果与 broker 端配置的消息版本不同，则需要先将原批量消息转换为目标版本 `magic` 对应格式的新批量消息，然后再在新批量消息中分配 `offset`；否则直接在原批量消息中就地分配 `offset`，此过程均不涉及解压缩。这里稍微解释下分配 `offset` 的逻辑，我们知道在 Kafka 中 `offset` 是 `partition` 下每条消息的唯一标识，consumer 端也是根据 `offset` 来追踪消费进度，而 `offset` 的生成和写入则是在 broker 端，就是此处提到的 `offset` 分配。理论上说，broker 需要为每条消息都分配一个 `offset` 的，但在实践中，因为用的是 `recordBatch`，内部消息是顺序排列的且总记录数是知道的，而 `recordBatch` 本身会记录 `baseOffset` ，故通常只需设置 `lastOffset`即可。唯一的例外是，当因消息格式转换或解压缩而需要创建新的 `recordBatch`时，会调用 `memoryRecordsBuilder` 的 `appendWithOffset` 方法为每一条消息记录分配 `offset`。
+从上可知，当 broker 端配置的压缩编码 `targetCodec` 与所收到的批量消息的压缩编码 `sourceCodec` 都为 `none` 即不压缩时，会再检查消息格式的版本，如果与 broker 端配置的版本不同，则需要先将原批量消息转换为目标版本 `magic` 对应格式的新批量消息，然后再在新批量消息中分配 `offset`；否则直接在原批量消息中就地分配 `offset`，此过程均不涉及解压缩。这里稍微解释下分配 `offset` 的逻辑，我们知道在 Kafka 中 `offset` 是 `partition` 下每条消息的唯一标识，consumer 端也是根据 `offset` 来追踪消费进度，而 `offset` 的生成和写入则是在 broker 端，就是此处提到的 `offset` 分配。理论上说，broker 需要为每条消息都分配一个 `offset` 的，但在实践中，因为用的是 `recordBatch`，内部消息是顺序排列的且总记录数是知道的，而 `recordBatch` 本身会记录 `baseOffset` ，故通常只需设置 `lastOffset`即可。唯一的例外是，当因消息格式转换或解压缩而需要创建新的 `recordBatch`时，会调用 `memoryRecordsBuilder` 的 `appendWithOffset` 方法为每一条消息记录分配 `offset`。
 
 当 `targetCodec` 与 `sourceCodec` 至少有一个不为 `none` 即需要压缩时，情况就复杂一些，具体逻辑都在 `validateMessagesAndAssignOffsetsCompressed`方法中，
 
@@ -557,13 +558,13 @@ public enum CompressionType {
 }
 ```
 
-每种压缩类型对于`wrapForOutput`和`wrapForInput`两方法的具体实现已经很清楚地阐述了压缩和解压的方式，感兴趣的朋友可以从该入口 `step in` 一探究竟。这里就不细述。当然这只是处理压缩最小的基本单元，为了搞清楚 Kafka 在何处使用它，还得继续看其他几个核心类。
+每种压缩类型对于 `wrapForOutput` 和 `wrapForInput` 两方法的具体实现已经很清楚地阐述了压缩和解压的方式，感兴趣的朋友可以从该入口 `step in` 一探究竟。这里就不细述。当然这只是处理压缩最小的基本单元，为了搞清楚 Kafka 在何处使用它，还得继续看其他几个核心类。
 
 在此之前，就上述源码，抛开本次主题，我还想谈几个值得学习借鉴的细节，
 
 > 1. `Snappy` 和 `Zstd` 都是用的 `XXXFactory` 静态方法来构建 Stream 对象，而其他的比如 `Lz4` 则都是直接通过 `new` 创建的对象。之所以这么做，我们进一步 `step in` 就会发现，对于 `Snappy` 和 `Zstd`，Kafka 都是直接依赖的第三方库，而其他的则是 JDK 或 Kafka 自己的实现。为了减少第三方库的副作用，**通过此方式将第三方库的类的惰性加载做到极致，这也体现出作者对 Java 类加载时机的充分理解，很精致的处理**。
 > 2. `Gzip` 的`wrapForInput`实现中，在 [KAFKA-6430](https://issues.apache.org/jira/browse/KAFKA-6430) 这个 Improvement 提交中，input buffer 从 0.5 KB 调大到 8 KB，其目的就是能够在一次 Gzip 压缩中处理更多的字节，以获得更高的性能。至少，从 commit 的描述上看，throughput 能翻倍。
-> 3. 抽象方法 `wrapForInput` 中暴露的最后一个 BufferSupplier类型的参数 `decompressionBufferSupplier`，正如方法的参数说明所言，对于比较小的批量消息，如果在 `wrapForInput` 内部新建 buffer，那么每次方法调用都会新分配buffer，这可能比压缩处理本身更耗时，所以该参数给了一个选择的机会，在外面分配内存，然后方法内循环利用。**在日常的编码中，对于循环中所需的空间，我也会经常会思考是每次新建好还是在外面分配，然后内部循环利用更好，case by case**.
+> 3. 抽象方法 `wrapForInput` 中暴露的最后一个 BufferSupplier类型的参数 `decompressionBufferSupplier`，正如方法的参数说明所言，对于比较小的批量消息，如果在 `wrapForInput` 内部新建 buffer，那么每次方法调用都会新分配buffer，这可能比压缩处理本身更耗时，所以该参数给了一个选择的机会，在外面分配内存，然后方法内循环利用。**在日常的编码中，对于循环中所需的空间，我也经常会思考是每次新建好还是先在外面分配，然后内部循环利用更好，case by case**.
 
 ## MemoryRecordsBuilder
 
@@ -650,7 +651,7 @@ public class MemoryRecordsBuilder implements AutoCloseable {
 
 可以看到，`appendStream` 是用于追加消息到内存 buffer 的，直接采用的 `compressionType` 的压缩逻辑来构建写入流的，如果此处 `compressionType`属于非 `none` 的有效压缩类型，则会产生压缩。此外，从上面 `magic` 的判断逻辑可知，消息的时间戳类型是从大版本 `V1` 开始支持的；而事务消息、控制消息、Zstd 压缩和 `deleteHorizonMs`都是从 `V2` 才开始支持的。这里的 `V1`、`V2` 对应消息格式的版本，其中 `V1` 是从 0.10.0 版本开始引入的，在此之前都是 `V0` 版本，而 `V2` 则是从 0.11.0 版本开始引入，直到现在的最新版依然是 `V2`。
 
-从 `close()` 方法可以看出，`MemoryRecordsBuilder` 在构建 `memoryRecords` 时，会根据消息格式的版本高低，写入不同的 Header。对于新版消息，在 `writeDefaultBatchHeader` 方法中直接调用 `DefaultRecordBatch.writeHeader(...)`写入新版消息特定的 Header；而对于老版消息，则是在 `writeLegacyCompressedWrapperHeader`方法中调用 `AbstractLegacyRecordBatch.writeHeader`  和 `LegacyRecord.writeCompressedRecordHeader` 写入老版消息的 Header。虽然 Header 的格式各不相同，但我们在两种 Header 中都可以看到 `compressionType` 的身影，以此可见，Kafka 是允许多种版本的消息共存，压缩与非压缩消息的共存，因为这些信息是保存在 `recordBatch` 上的，是批量消息级别。
+从 `close()` 方法可以看出，`MemoryRecordsBuilder` 在构建 `memoryRecords` 时，会根据消息格式的版本高低，写入不同的 Header。对于新版消息，在 `writeDefaultBatchHeader` 方法中直接调用 `DefaultRecordBatch.writeHeader(...)`写入新版消息特定的 Header；而对于老版消息，则是在 `writeLegacyCompressedWrapperHeader`方法中调用 `AbstractLegacyRecordBatch.writeHeader`  和 `LegacyRecord.writeCompressedRecordHeader` 写入老版消息的 Header。虽然 Header 的格式各不相同，但我们在两种 Header 中都可以看到 `compressionType` 的身影，以此可见，Kafka 是允许多种版本的消息共存的，以及压缩与非压缩消息的共存，因为这些信息是保存在 `recordBatch` 上的，是批量消息级别。
 
 ## DefaultRecordBatch
 
@@ -679,7 +680,7 @@ public class DefaultRecordBatch extends AbstractRecordBatch implements MutableRe
 }
 ```
 
-`RecordBatch` 是表示批量消息的接口，对于老版格式的消息（版本 0 和 1），如果没有压缩，只会包含单条消息，否则可以包含多条；而新版格式消息（版本 2及以上）无论是否压缩，都是通常包含多条消息。且该接口中有一个 `compressionType()`方法来标识该 batch 的压缩类型，它会作为读消息时解压的判断依据。而上面的 `DefaultRecordBatch` 则是该接口的针对新版本格式消息的默认实现，它也实现了 `Iterable<Record>` 接口，因而 `iterator()` 是访问批量消息的核心逻辑，当 `compressionType()` 返回 `none` 时，表示不压缩，直接返回非压缩迭代器，此处跳过，当有压缩时，走的是压缩迭代器，具体实现如下，
+`RecordBatch` 是表示批量消息的接口，对于老版格式的消息（版本 `V0` 和 `V1`），如果没有压缩，只会包含单条消息，否则可以包含多条；而新版格式消息（版本 `V2` 及以上）无论是否压缩，都是通常包含多条消息。且该接口中有一个 `compressionType()`方法来标识该 batch 的压缩类型，它会作为读消息时解压的判断依据。而上面的 `DefaultRecordBatch` 则是该接口的针对新版本格式消息的默认实现，它也实现了 `Iterable<Record>` 接口，因而 `iterator()` 是访问批量消息的核心逻辑，当 `compressionType()` 返回 `none` 时，表示不压缩，直接返回非压缩迭代器，此处跳过，当有压缩时，走的是压缩迭代器，具体实现如下，
 
 ```java
     public DataInputStream recordInputStream(BufferSupplier bufferSupplier) {
