@@ -34,12 +34,12 @@ Kafka [官网](https://cwiki.apache.org/confluence/display/KAFKA/Compression) �
 
 目前 Kafka 共支持四种主要的压缩类型：Gzip、Snappy、Lz4 和 Zstd。关于这几种压缩的特性，
 
-| 压缩类型 | Compression ratio | CPU 使用率 | Compression speed | Network bandwidth usage |
-| -------- | ----------------- | ---------- | ----------------- | ----------------------- |
-| Gzip     | Highest           | Highest    | Slowest           | Lowest                  |
-| Snappy   | Medium            | Moderate   | Moderate          | Medium                  |
-| Lz4      | Low               | Lowest     | Fastest           | Highest                 |
-| Zstd     | Medium            | Moderate   | Moderate          | Medium                  |
+| 压缩类型 | 压缩比率 | CPU 使用率 | 压缩速度 | 带宽使用率 |
+| -------- | -------- | ---------- | ----------------- | ----------------------- |
+| Gzip     | Highest  | Highest    | Slowest           | Lowest                  |
+| Snappy   | Medium   | Moderate   | Moderate          | Medium                  |
+| Lz4      | Low      | Lowest     | Fastest           | Highest                 |
+| Zstd     | Medium   | Moderate   | Moderate          | Medium                  |
 
 从上表可知，Snappy 在 CPU 使用率、压缩比、压缩速度和网络带宽使用率之间实现良好的平衡，我们最终也是采用的该类型进行压缩试点。这里值得一提的是，Zstd 是 Facebook 于 2016 年开源的新压缩算法，压缩率和压缩性能都不错，具有与 Snappy（Google 杰作）相似的特性，直到 Kafka 的 2.1.0 版本才引入支持。
 
