@@ -20,7 +20,7 @@ date: 2022-04-30 22:00:00
 
 在谈消息压缩类型之前，我们先看下 Kafka 中关于消息压缩的定义是什么。
 
-Kafka [官网](https://cwiki.apache.org/confluence/display/KAFKA/Compression)有这样一段解释：
+Kafka [官网](https://cwiki.apache.org/confluence/display/KAFKA/Compression) 有这样一段解释：
 
 > 此为 Kafka 中端到端的块压缩功能。如果启用，数据将由 producer 压缩，以压缩格式写入服务器，并由 consumer 解压缩。压缩将提高 consumer 的吞吐量，但需付出一定的解压成本。这在跨数据中心镜像数据时尤其有用。
 
