@@ -8,7 +8,10 @@ categories:
 date: 2022-06-03 20:00:00
 ---
 
+
 最近要在 Spark job 中通过 Spark SQL 的方式读取 Elasticsearch 数据，踩了一些坑，总结于此。
+
+<!--more-->
 
 # 环境说明
 
@@ -224,7 +227,10 @@ Spark SQL 通过 `DataFrameReader`  类支持读取各种类型的数据源，�
 * df.createOrReplaceTempView("view_name")，构建临时表视图，方便后续 SQL 操作。
 * df.withColumn()，添加新列或替换现有列。
   * df.withColumn("final_result", lit("PASS")) ，通过 `lit` 添加常量列。
+* df.filter(col("label").isNotNull)，用指定的条件过滤行。
+* df.dropDuplicates("itemId","attributeId")，按指定列对行去重，返回新的数据集。
 * df.union(otherDf)，将两个 DataFrame 的记录合并且不去重，相当于 union all。
+* df.toDF("itemId", "attributeId", "label", "final_result")，为 df 各列指定一个有意义的名称。
 
 ### Scala 与 Java 类型映射
 
@@ -237,6 +243,17 @@ Spark SQL 通过 `DataFrameReader`  类支持读取各种类型的数据源，�
 import scala.collection.JavaConverters._
 newDf = df.filter(!col("itemId").isin(trainItemIds.asScala.map(Long2long).toList:_*))
 ```
+
+### Scala 中的 `: _*`
+
+`:_*` 是 **type ascription** 的一个特例，它会告诉编译器将序列类型的单个参数视为变参数序列，即 varargs。应用例子，
+
+```scala
+val indices = Array("aen-label", "aen-label-seller")
+Joiner.on(",").join(java.util.Arrays.asList(indices:_*))
+```
+
+
 
 ## 踩的坑
 
@@ -291,6 +308,16 @@ Exception in thread "main" org.elasticsearch.hadoop.EsHadoopIllegalArgumentExcep
 
 通过 `option("es.nodes.wan.only", value = true)` 将配置项设置为 true 后恢复正常。
 
+### importing spark.implicits._
+
+在遍历 DataFrame 时遇到如下编译错误，
+
+```shell
+Unable to find encoder for type stored in a Dataset.  Primitive types (Int, String, etc) and Product types (case classes) are supported by importing spark.implicits._
+```
+
+在处理 DataFrame 之前需要加上 `importing spark.implicits._`，用于将常见的 Scala 对象转换为 DataFrame，通常在获取 SparkSession 后立马 import。
+
 ### Spark SQL 读取 hive 表中 array 类型时，对于 Scala 语言，得到的类型是 `WrappedArray` 而不是 `Array`
 
 当我们通过 `createOrReplaceTempView("temp_labels")` 构建一个临时表视图后，就可以通过 SQL 像操作 hive 表那样读取数据。例如读取指定的列，
@@ -313,13 +340,14 @@ root
 `labels` 是包含 struct 的数组，于是从 row 中将 `labels` 列读出时想尝试转换为 Array，
 
 ```scala
-val newDf = sqlDf
-			.map(row => {
-        val labels = row.getAs[Array[Row]]("labels")
-        val labelValue = labels.find(p => p.getAs[Long]("id") == attributeId).map(p => p.getAs[String]("label"))
+val newDf = sqlDf.map(
+  row => {
+    val labels = row.getAs[Array[Row]]("labels")
+    val labelValue = labels.find(p => p.getAs[Long]("id") == attributeId).map(p => p.getAs[String]("label"))
 
-        (row.getAs[Long]("itemId"), attributeId, labelValue.orNull)
-      })
+    (row.getAs[Long]("itemId"), attributeId, labelValue.orNull)
+  }
+)
 ```
 
 结果报错如下，
@@ -328,7 +356,7 @@ val newDf = sqlDf
 java.lang.ClassCastException: scala.collection.mutable.WrappedArray$ofRef cannot be cast to [Lorg.apache.spark.sql.Row;
 ```
 
-可以看到 Spark SQL 在读取表中数组列时，是用的 `scala.collection.mutable.WrappedArray` 来存储结果的，看其类定义可知，它是间接继承 Seq 接口的，所以也可用 `row.getAs[Seq[Row]]("labels")` 来读取。**这里需要注意的是，Array[T] 虽然在 Scala 源码定义中是 class，但其对标的 Java 类型是原生数组 T[]**。
+可以看到 Spark SQL 在读取表中数组列时，是用的 `scala.collection.mutable.WrappedArray` 来存储结果的，看其类定义可知，它是间接实现 Seq 接口的，所以也可用 `row.getAs[Seq[Row]]("labels")` 来读取。**这里需要注意的是，Array[T] 虽然在 Scala 源码定义中是 class，但其对标的 Java 类型是原生数组 T[]**。
 
 ###  判断 Column 是否为 null 时，需要用 `is null` 或 `is not null`，而不是 `===` 或 ` !==`
 
@@ -354,14 +382,14 @@ import org.apache.spark.sql.{DataFrame, Row, SaveMode, SparkSession}
 object TestMain extends LazyLogging {
   def main(args: Array[String]): Unit = {
     val myUtils = new MyUtils
-    new OfflineMetricsByProfileNewApp(myUtils).run()
+    new TestApp(myUtils).run()
   }
 }
 
 class TestApp(myUtils: MyUtils) extends Serializable with LazyLogging {  
   def esDf(spark: SparkSession, indices: Array[String]): DataFrame = {
     spark.read
-      .format("org.elasticsearch.spark.sql")
+      .format("es")
       .option("es.nodes", myUtils.esHost())
       .option("es.port", "9200")
       .option("es.nodes.wan.only", value = true)
@@ -369,10 +397,68 @@ class TestApp(myUtils: MyUtils) extends Serializable with LazyLogging {
       .option("es.scroll.size", 2000)
       .load()
   }
+  
+  def run(): Unit = {
+    val spark = myUtils.getSparkSession
+    import spark.implicits._
+    
+    val esTempView = "es_label"
+    val labelNames = Array("aen-label-retail", "aen-label-seller")
+    esDf(spark, labelNames).createOrReplaceTempView(esTempView)
+    
+    val labelDf = getLabelDf(spark, itemIdsStr, attributeTypeIds, esTempView)
+    println("debug log")
+    labelDf.printSchema()
+    labelDf.show()
+    labelDf.createOrReplaceTempView("final_labels")
+    
+    val data = spark.sql(
+      s"""
+      |select cc.*, pp.final_result, pp.label, null as remark
+      |from temp_request cc
+      |left join final_labels pp
+      |on cc.itemid = pp.itemId
+      |and cc.attributetypeid = pp.attributeId
+      |where cc.profile = '$jobId'
+      |""".stripMargin)
+
+    data.distinct().write.mode(SaveMode.Overwrite)
+    .option("compression", "gzip")
+    .json(s"s3://sherlockyb-test/check-precision/job_id=$jobId")
+  }
+  
+  def getLabelDf(spark: SparkSession, itemIdsStr: String, attributeTypeIds: Array[String], esTempView: String): DataFrame = {
+    import spark.implicits._
+
+    val sqlDf = spark.sql(s"select itemId, labels from $esTempView where itemId in ($itemIdsStr)")
+    val emptyDf = spark.emptyDataFrame
+    var labelDf = emptyDf
+    attributeTypeIds.foreach(attributeTypeId => {
+      val attributeDf = sqlDf
+        .map(row => {
+          val labels = row.getAs[Seq[Row]]("labels")
+          val labelValue = labels.find(p => p.getAs[Long]("id") == attributeTypeId.toLong).map(p => p.getAs[String]("label"))
+
+          (row.getAs[Long]("itemId"), attributeTypeId.toLong, labelValue.orNull)
+        })
+        .withColumn("final_result", lit("PASS"))
+        .toDF("itemId", "attributeId", "label", "final_result")
+        .filter(col("label").isNotNull)
+      if (labelDf == emptyDf) {
+        labelDf = attributeDf
+      } else {
+        labelDf = labelDf.union(attributeDf)
+      }
+    })
+
+    labelDf.dropDuplicates("itemId","attributeId")
+  }
 }
 ```
 
-将 job 工程打包为 Jar，上传到 AWS 的 s3，比如 `s3://sherlockyb-test/1.0.0/artifacts/spark/` 目录下，然后通过 Genie 提交 spark job 到集群测试。Genie 是 Netflix 研发的联合作业执行引擎，提供 REST-full API 来运行各种大数据作业，如 Hadoop、Pig、Hive、Spark、Presto、Sqoop 等。
+# 补充：提交 spark job
+
+将 job 工程打包为 Jar，上传到 AWS 的 s3，比如 `s3://sherlockyb-test/1.0.0/artifacts/spark/` 目录下，然后通过 Genie 提交 spark job 到 Spark 集群运行。Genie 是 Netflix 研发的联合作业执行引擎，提供 REST-full API 来运行各种大数据作业，如 Hadoop、Pig、Hive、Spark、Presto、Sqoop 等。
 
 ```python
 def run_spark(job_name, spark_jar_name, spark_class_name, arg_str, spark_param=''):
@@ -397,11 +483,8 @@ def run_spark(job_name, spark_jar_name, spark_class_name, arg_str, spark_param='
 
     # Submit the job to Genie
     running_job = job.execute()
-    print('Job link: {}'.format(running_job.job_link))
-
     running_job.wait()
-
-    print('Job {} finished with status {}'.format(running_job.job_id, running_job.status))
+    
     return running_job.status
 ```
 
