@@ -28,7 +28,7 @@ hexo是当前最火的静态博客框架，支持Markdown格式文章编辑并�
 
 因Github Page要求使用master分支作为发布网站的源代码，我们只能用master分支来保存hexo生成的静态网页，对于博客源码，可以新建一个source分支来存储。在github上打开Pages对应的仓库，也就是以"username.github.io"命名的仓库，然后建立一个source分支，如下图：
 
-![create_branch](save-hexo-source-post-with-git-branch\create_branch.png)
+![create_branch](save-hexo-source-post-with-git-branch/create_branch.png)
 
 因为我已经创建过source分支，故下方会显示目前该仓库上有master和source两个分支。其中source分支显示打钩，表示当前仓库的默认分支已经是source而不是master了，下面会讲。
 
