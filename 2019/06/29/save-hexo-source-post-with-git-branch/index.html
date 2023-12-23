@@ -95,14 +95,14 @@
 <meta property="og:site_name" content="小冰的个人博客">
 <meta property="og:description" content="hexo是当前最火的静态博客框架，支持Markdown格式文章编辑并自动生成对应的静态网页，简单高效令人爱不释手。使用hexo写博客的流程通常是，  通过hexo new post_name命令，会自动在source/_post目录下生成一个待写的post_name.md文件 编写完该md文件后，用hexo generate编译生成对应的HTML文件 发布之前，可以用hexo s本地预览，然后通过">
 <meta property="og:locale" content="zh-Hans">
-<meta property="og:image" content="https://www.yangbing.fun/2019/06/29/save-hexo-source-post-with-git-branch/save-hexo-source-post-with-git-branch%5Ccreate_branch.png">
+<meta property="og:image" content="https://www.yangbing.fun/2019/06/29/save-hexo-source-post-with-git-branch/create_branch.png">
 <meta property="og:image" content="https://www.yangbing.fun/2019/06/29/save-hexo-source-post-with-git-branch/default_branch.png">
 <meta property="og:image" content="https://www.yangbing.fun/2019/06/29/save-hexo-source-post-with-git-branch/source_files.png">
-<meta property="og:updated_time" content="2023-12-23T01:28:33.023Z">
+<meta property="og:updated_time" content="2023-12-23T03:47:44.748Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="使用git分支保存hexo博客源码到github">
 <meta name="twitter:description" content="hexo是当前最火的静态博客框架，支持Markdown格式文章编辑并自动生成对应的静态网页，简单高效令人爱不释手。使用hexo写博客的流程通常是，  通过hexo new post_name命令，会自动在source/_post目录下生成一个待写的post_name.md文件 编写完该md文件后，用hexo generate编译生成对应的HTML文件 发布之前，可以用hexo s本地预览，然后通过">
-<meta name="twitter:image" content="https://www.yangbing.fun/2019/06/29/save-hexo-source-post-with-git-branch/save-hexo-source-post-with-git-branch%5Ccreate_branch.png">
+<meta name="twitter:image" content="https://www.yangbing.fun/2019/06/29/save-hexo-source-post-with-git-branch/create_branch.png">
 
 
 
@@ -449,7 +449,7 @@
 
 <h3 id="困扰"><a href="#困扰" class="headerlink" title="困扰"></a>困扰</h3><p>然而，使用过hexo搭建个人博客的朋友们想必都会遇到博客源码保存的问题。即远程仓库只会保存hexo发布后的静态HTML文件，你的博客md源文件、主题配置等还在本地，一旦电脑磁盘坏了或者换了电脑，就无法在之前仓库的基础上继续写博客。针对此问题，有不少博主会在github上单独另起一个<strong>repository</strong>来专门保存博客源文件，每次发布完新文章，需要手动地将<code>source/post</code>下的md文件上传到源文件对应的<strong>repository</strong>，确实也能解决问题，但总归是麻烦。后来偶然看到聪明的网友借助git分支来巧妙地实现用同一个仓库保存静态网页和博客源码，自己试了下确实很赞，故总结之。</p>
 <h3 id="解决办法"><a href="#解决办法" class="headerlink" title="解决办法"></a>解决办法</h3><h4 id="新建git分支"><a href="#新建git分支" class="headerlink" title="新建git分支"></a>新建git分支</h4><p>因Github Page要求使用master分支作为发布网站的源代码，我们只能用master分支来保存hexo生成的静态网页，对于博客源码，可以新建一个source分支来存储。在github上打开Pages对应的仓库，也就是以”username.github.io”命名的仓库，然后建立一个source分支，如下图：</p>
-<p><img src="/2019/06/29/save-hexo-source-post-with-git-branch/save-hexo-source-post-with-git-branch%5Ccreate_branch.png" alt="create_branch"></p>
+<p><img src="/2019/06/29/save-hexo-source-post-with-git-branch/create_branch.png" alt="create_branch"></p>
 <p>因为我已经创建过source分支，故下方会显示目前该仓库上有master和source两个分支。其中source分支显示打钩，表示当前仓库的默认分支已经是source而不是master了，下面会讲。</p>
 <h4 id="更改仓库的默认分支"><a href="#更改仓库的默认分支" class="headerlink" title="更改仓库的默认分支"></a>更改仓库的默认分支</h4><p>github上的仓库初始都会有个master分支，也就是默认分支。对于一个仓库<code>project_name</code>，当我们通过<code>git clone https://github.com/sherlockyb/project_name.git</code>下载代码时，实际拉取的是默认分支master对应的代码。而我们用hexo写博客时，通常是与md源文件打交道，对于deploy生成的master分支代码并不需要我们关注，因此可将仓库的默认分支改为保存源码的source分支，这样通过<code>git clone</code>拉取的就是source分支代码了。</p>
 <p>在仓库的主页面，通过Settings -&gt; Branchs，可以看到<strong>Default branch</strong>的Tab，显示的默认分支是master，可以勾选source，然后update即可将默认分支设置为source，如下图：</p>
