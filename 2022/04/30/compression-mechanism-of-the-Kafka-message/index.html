@@ -1,0 +1,1260 @@
+<!doctype html>
+
+
+
+  
+
+
+<html class="theme-next pisces use-motion" lang="zh-Hans">
+<head><meta name="generator" content="Hexo 3.9.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+  
+  
+  
+  
+
+  
+    
+    
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    
+    
+    <link href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&subset=latin,latin-ext" rel="stylesheet" type="text/css">
+  
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.0" rel="stylesheet" type="text/css">
+
+
+  <meta name="keywords" content="Kafka系列,消息队列,源码,">
+
+
+
+
+
+
+
+
+  <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico?v=5.1.0">
+
+
+
+
+
+
+<meta name="description" content="最近在做 AWS cost saving 的事情，对于 Kafka 消息集群，计划通过压缩消息来减少消息存储所占空间，从而达到减少 cost 的目的。本文将结合源码从 Kafka 支持的消息压缩类型、何时需要压缩、如何开启压缩、何处进行解压缩以及压缩原理来总结 Kafka 整个消息压缩机制。文中所涉及源码部分均来自于 Kafka 当前最新的 3.3.0-SNAPSHOT 版本。">
+<meta name="keywords" content="Kafka系列,消息队列,源码">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kafka消息的压缩机制">
+<meta property="og:url" content="https://www.yangbing.fun/2022/04/30/compression-mechanism-of-the-Kafka-message/index.html">
+<meta property="og:site_name" content="小冰的个人博客">
+<meta property="og:description" content="最近在做 AWS cost saving 的事情，对于 Kafka 消息集群，计划通过压缩消息来减少消息存储所占空间，从而达到减少 cost 的目的。本文将结合源码从 Kafka 支持的消息压缩类型、何时需要压缩、如何开启压缩、何处进行解压缩以及压缩原理来总结 Kafka 整个消息压缩机制。文中所涉及源码部分均来自于 Kafka 当前最新的 3.3.0-SNAPSHOT 版本。">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:updated_time" content="2023-12-23T01:28:33.003Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Kafka消息的压缩机制">
+<meta name="twitter:description" content="最近在做 AWS cost saving 的事情，对于 Kafka 消息集群，计划通过压缩消息来减少消息存储所占空间，从而达到减少 cost 的目的。本文将结合源码从 Kafka 支持的消息压缩类型、何时需要压缩、如何开启压缩、何处进行解压缩以及压缩原理来总结 Kafka 整个消息压缩机制。文中所涉及源码部分均来自于 Kafka 当前最新的 3.3.0-SNAPSHOT 版本。">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Pisces',
+    sidebar: {"position":"left","display":"post"},
+    fancybox: true,
+    motion: true,
+    duoshuo: {
+      userId: 'undefined',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://www.yangbing.fun/2022/04/30/compression-mechanism-of-the-Kafka-message/">
+
+
+
+
+
+  <title> Kafka消息的压缩机制 | 小冰的个人博客 </title>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+
+
+
+
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+            (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+          m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-109259143-1', 'auto');
+  ga('send', 'pageview');
+</script>
+
+
+  <script type="text/javascript">
+    var _hmt = _hmt || [];
+    (function() {
+      var hm = document.createElement("script");
+      hm.src = "https://hm.baidu.com/hm.js?59fe19f57bfa52fb1144830fa4d7a771";
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(hm, s);
+    })();
+  </script>
+
+
+
+
+
+
+
+
+
+
+  
+  
+    
+  
+
+  <div class="container one-collumn sidebar-position-left page-post-detail ">
+    <div class="headband"></div>
+    
+    <a href="https://github.com/sherlockyb" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewbox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"/><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"/><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"/></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-meta ">
+  
+
+  <div class="custom-logo-site-title">
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <span class="site-title">小冰的个人博客</span>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+    
+      <h1 class="site-subtitle" itemprop="description">行万里路，读万卷书</h1>
+    
+</div>
+
+<div class="site-nav-toggle">
+  <button>
+    <span class="btn-bar"></span>
+    <span class="btn-bar"></span>
+    <span class="btn-bar"></span>
+  </button>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            分类
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            归档
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            标签
+          </a>
+        </li>
+      
+
+      
+        <li class="menu-item menu-item-search">
+          
+            <a href="javascript:;" class="popup-trigger">
+          
+            
+              <i class="menu-item-icon fa fa-search fa-fw"></i> <br>
+            
+            搜索
+          </a>
+        </li>
+      
+    </ul>
+  
+
+  
+    <div class="site-search">
+      
+  <div class="popup">
+ <span class="search-icon fa fa-search"></span>
+ <input type="text" id="local-search-input">
+ <div id="local-search-result"></div>
+ <span class="popup-btn-close">close</span>
+</div>
+
+
+    </div>
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal " itemscope itemtype="http://schema.org/Article">
+  <link itemprop="mainEntityOfPage" href="https://www.yangbing.fun/2022/04/30/compression-mechanism-of-the-Kafka-message/">
+
+  <span style="display:none" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <meta itemprop="name" content="杨冰">
+    <meta itemprop="description" content>
+    <meta itemprop="image" content="/images/me.jpg">
+  </span>
+
+  <span style="display:none" itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+    <meta itemprop="name" content="小冰的个人博客">
+    <span style="display:none" itemprop="logo" itemscope itemtype="http://schema.org/ImageObject">
+      <img style="display:none;" itemprop="url image" alt="小冰的个人博客" src>
+    </span>
+  </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">
+            
+            
+              
+                Kafka消息的压缩机制
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2022-04-30T22:00:00+08:00">
+                2022-04-30
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kafka/" itemprop="url" rel="index">
+                    <span itemprop="name">Kafka</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+            <span class="post-meta-divider">|</span>
+            <span class="page-pv"><i class="fa fa-eye"></i> 热度
+            <span class="busuanzi-value" id="busuanzi_value_page_pv"></span>℃
+            </span>
+          
+
+          
+            <div class="post-wordcount">
+              
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-file-word-o"></i>
+                </span>
+                  
+                    <span class="post-meta-item-text">字数</span>
+                  
+                    <span title="字数" }}">
+                      7.1k
+                    </span>
+              
+
+              
+                <span class="post-meta-divider">|</span>
+              
+
+              
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-clock-o"></i>
+                </span>
+                  
+                    <span class="post-meta-item-text">读完约</span>
+                  
+                    <span title="读完约" }}">
+                      31 分钟
+                    </span>
+              
+            </div>
+          
+
+          
+
+        </div>
+      </header>
+    
+
+
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <p>最近在做 AWS cost saving 的事情，对于 Kafka 消息集群，计划通过压缩消息来减少消息存储所占空间，从而达到减少 cost 的目的。本文将结合源码从 Kafka 支持的消息压缩类型、何时需要压缩、如何开启压缩、何处进行解压缩以及压缩原理来总结 Kafka 整个消息压缩机制。文中所涉及源码部分均来自于 Kafka 当前最新的 3.3.0-SNAPSHOT 版本。</p>
+<a id="more"></a>
+
+<h1 id="Kafka支持的消息压缩类型"><a href="#Kafka支持的消息压缩类型" class="headerlink" title="Kafka支持的消息压缩类型"></a>Kafka支持的消息压缩类型</h1><h2 id="什么是-Kafka-的消息压缩"><a href="#什么是-Kafka-的消息压缩" class="headerlink" title="什么是 Kafka 的消息压缩"></a>什么是 Kafka 的消息压缩</h2><p>在谈消息压缩类型之前，我们先看下 Kafka 中关于消息压缩的定义是什么。</p>
+<p>Kafka <a href="https://cwiki.apache.org/confluence/display/KAFKA/Compression" target="_blank" rel="noopener">官网</a> 有这样一段解释：</p>
+<blockquote>
+<p>此为 Kafka 中端到端的块压缩功能。如果启用，数据将由 producer 压缩，以压缩格式写入服务器，并由 consumer 解压缩。压缩将提高 consumer 的吞吐量，但需付出一定的解压成本。这在跨数据中心镜像数据时尤其有用。</p>
+</blockquote>
+<p>也就是说，Kafka 的消息压缩是指将消息本身采用特定的压缩算法进行压缩并存储，待消费时再解压。</p>
+<p>我们知道压缩就是用时间换空间，其基本理念是基于重复，将重复的片段编码为字典，字典的 key 为重复片段，value 为更短的代码，比如序列号，然后将原始内容中的片段用代码表示，达到缩短内容的效果，压缩后的内容则由字典和代码序列两部分组成。解压时根据字典和代码序列可无损地还原为原始内容。注：有损压缩不在此次讨论范围。</p>
+<p>通常来讲，重复越多，压缩效果越好。比如 JSON 是 Kafka 消息中常用的序列化格式，单条消息内可能并没有多少重复片段，但如果是批量消息，则会有大量重复的字段名，批量中消息越多，则重复越多，这也是为什么 Kafka 更偏向块压缩，而不是单条消息压缩。</p>
+<h2 id="消息压缩类型"><a href="#消息压缩类型" class="headerlink" title="消息压缩类型"></a>消息压缩类型</h2><p>目前 Kafka 共支持四种主要的压缩类型：Gzip、Snappy、Lz4 和 Zstd。关于这几种压缩的特性，</p>
+<table>
+<thead>
+<tr>
+<th>压缩类型</th>
+<th>压缩比率</th>
+<th>CPU 使用率</th>
+<th>压缩速度</th>
+<th>带宽使用率</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Gzip</td>
+<td>Highest</td>
+<td>Highest</td>
+<td>Slowest</td>
+<td>Lowest</td>
+</tr>
+<tr>
+<td>Snappy</td>
+<td>Medium</td>
+<td>Moderate</td>
+<td>Moderate</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td>Lz4</td>
+<td>Low</td>
+<td>Lowest</td>
+<td>Fastest</td>
+<td>Highest</td>
+</tr>
+<tr>
+<td>Zstd</td>
+<td>Medium</td>
+<td>Moderate</td>
+<td>Moderate</td>
+<td>Medium</td>
+</tr>
+</tbody></table>
+<p>从上表可知，Snappy 在 CPU 使用率、压缩比、压缩速度和网络带宽使用率之间实现良好的平衡，我们最终也是采用的该类型进行压缩试点。这里值得一提的是，Zstd 是 Facebook 于 2016 年开源的新压缩算法，压缩率和压缩性能都不错，具有与 Snappy（Google 杰作）相似的特性，直到 Kafka 的 2.1.0 版本才引入支持。</p>
+<p>针对这几种压缩本身的性能，Zstd <a href="https://github.com/facebook/zstd" target="_blank" rel="noopener">GitHub 官方</a> 公布了压测对比结果如下，</p>
+<table>
+<thead>
+<tr>
+<th>Compressor name</th>
+<th>Ratio</th>
+<th>Compression</th>
+<th>Decompress.</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>zstd 1.5.1 -1</strong></td>
+<td>2.887</td>
+<td>530 MB&#x2F;s</td>
+<td>1700 MB&#x2F;s</td>
+</tr>
+<tr>
+<td><a href="http://www.zlib.net/" target="_blank" rel="noopener">zlib</a> 1.2.11 -1</td>
+<td>2.743</td>
+<td>95 MB&#x2F;s</td>
+<td>400 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>brotli 1.0.9 -0</td>
+<td>2.702</td>
+<td>395 MB&#x2F;s</td>
+<td>450 MB&#x2F;s</td>
+</tr>
+<tr>
+<td><strong>zstd 1.5.1 –fast&#x3D;1</strong></td>
+<td>2.437</td>
+<td>600 MB&#x2F;s</td>
+<td>2150 MB&#x2F;s</td>
+</tr>
+<tr>
+<td><strong>zstd 1.5.1 –fast&#x3D;3</strong></td>
+<td>2.239</td>
+<td>670 MB&#x2F;s</td>
+<td>2250 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>quicklz 1.5.0 -1</td>
+<td>2.238</td>
+<td>540 MB&#x2F;s</td>
+<td>760 MB&#x2F;s</td>
+</tr>
+<tr>
+<td><strong>zstd 1.5.1 –fast&#x3D;4</strong></td>
+<td>2.148</td>
+<td>710 MB&#x2F;s</td>
+<td>2300 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>lzo1x 2.10 -1</td>
+<td>2.106</td>
+<td>660 MB&#x2F;s</td>
+<td>845 MB&#x2F;s</td>
+</tr>
+<tr>
+<td><a href="http://www.lz4.org/" target="_blank" rel="noopener">lz4</a> 1.9.3</td>
+<td>2.101</td>
+<td>740 MB&#x2F;s</td>
+<td>4500 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>lzf 3.6 -1</td>
+<td>2.077</td>
+<td>410 MB&#x2F;s</td>
+<td>830 MB&#x2F;s</td>
+</tr>
+<tr>
+<td>snappy 1.1.9</td>
+<td>2.073</td>
+<td>550 MB&#x2F;s</td>
+<td>1750 MB&#x2F;s</td>
+</tr>
+</tbody></table>
+<p>可以看到 Zstd 可以通过压缩速度为代价获得更高的压缩比，二者之间的权衡可通过 <code>--fast</code> 参数灵活配置。</p>
+<h1 id="何时需要压缩"><a href="#何时需要压缩" class="headerlink" title="何时需要压缩"></a>何时需要压缩</h1><p>压缩是需要额外的 CPU 代价的，并且会带来一定的消息分发延迟，因而在压缩前要慎重考虑是否有必要。笔者认为需考虑以下几方面：</p>
+<ul>
+<li>压缩带来的磁盘空间和带宽节省远大于额外的 CPU 代价，这样的压缩是值得的。</li>
+<li>数据量足够大且具重复性。消息压缩是批量的，低频的数据流可能都无法填满一个批量，会影响压缩比。数据重复性越高，往往压缩效果越好，例如 JSON、XML 等结构化数据；但若数据不具重复性，例如文本都是唯一的 md5 或 UUID 之类，违背了压缩的重复性前提，压缩效果可能不会理想。</li>
+<li>系统对消息分发的延迟没有严苛要求，可容忍轻微的延迟增长。</li>
+</ul>
+<h1 id="如何开启压缩"><a href="#如何开启压缩" class="headerlink" title="如何开启压缩"></a>如何开启压缩</h1><p>Kafka 通过配置属性 <code>compression.type</code> 控制是否压缩。该属性在 producer 端和 broker 端各自都有一份，也就是说，我们可以选择在 producer 或 broker 端开启压缩，对应的应用场景各有不同。</p>
+<h2 id="在-Broker-端开启压缩"><a href="#在-Broker-端开启压缩" class="headerlink" title="在 Broker 端开启压缩"></a>在 Broker 端开启压缩</h2><h3 id="compression-type-属性"><a href="#compression-type-属性" class="headerlink" title="compression.type 属性"></a>compression.type 属性</h3><p>Broker 端的 <code>compression.type</code> 属性默认值为 <code>producer</code>，即直接继承 producer 端所发来消息的压缩方式，无论消息采用何种压缩或者不压缩，broker 都原样存储，这一点可以从如下代码片段看出：</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">UnifiedLog</span>(<span class="params">...</span>) <span class="keyword">extends</span> <span class="title">Logging</span> <span class="keyword">with</span> <span class="title">KafkaMetricsGroup</span> </span>&#123;</span><br><span class="line">  ...</span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">analyzeAndValidateRecords</span></span>(records: <span class="type">MemoryRecords</span>,</span><br><span class="line">                                        origin: <span class="type">AppendOrigin</span>,</span><br><span class="line">                                        ignoreRecordSize: <span class="type">Boolean</span>,</span><br><span class="line">                                        leaderEpoch: <span class="type">Int</span>): <span class="type">LogAppendInfo</span> = &#123;</span><br><span class="line">    records.batches.forEach &#123; batch =&gt;</span><br><span class="line">      ...</span><br><span class="line">      <span class="keyword">val</span> messageCodec = <span class="type">CompressionCodec</span>.getCompressionCodec(batch.compressionType.id)</span><br><span class="line">      <span class="keyword">if</span> (messageCodec != <span class="type">NoCompressionCodec</span>)</span><br><span class="line">        sourceCodec = messageCodec</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// Apply broker-side compression if any</span></span><br><span class="line">    <span class="keyword">val</span> targetCodec = <span class="type">BrokerCompressionCodec</span>.getTargetCompressionCodec(config.compressionType, sourceCodec);</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">object</span> <span class="title">BrokerCompressionCodec</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">val</span> brokerCompressionCodecs = <span class="type">List</span>(<span class="type">UncompressedCodec</span>, <span class="type">ZStdCompressionCodec</span>, <span class="type">LZ4CompressionCodec</span>, <span class="type">SnappyCompressionCodec</span>, <span class="type">GZIPCompressionCodec</span>, <span class="type">ProducerCompressionCodec</span>)</span><br><span class="line">  <span class="keyword">val</span> brokerCompressionOptions: <span class="type">List</span>[<span class="type">String</span>] = brokerCompressionCodecs.map(codec =&gt; codec.name)</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">isValid</span></span>(compressionType: <span class="type">String</span>): <span class="type">Boolean</span> = brokerCompressionOptions.contains(compressionType.toLowerCase(<span class="type">Locale</span>.<span class="type">ROOT</span>))</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">getCompressionCodec</span></span>(compressionType: <span class="type">String</span>): <span class="type">CompressionCodec</span> = &#123;</span><br><span class="line">    compressionType.toLowerCase(<span class="type">Locale</span>.<span class="type">ROOT</span>) <span class="keyword">match</span> &#123;</span><br><span class="line">      <span class="keyword">case</span> <span class="type">UncompressedCodec</span>.name =&gt; <span class="type">NoCompressionCodec</span></span><br><span class="line">      <span class="keyword">case</span> _ =&gt; <span class="type">CompressionCodec</span>.getCompressionCodec(compressionType)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">getTargetCompressionCodec</span></span>(compressionType: <span class="type">String</span>, producerCompression: <span class="type">CompressionCodec</span>): <span class="type">CompressionCodec</span> = &#123;</span><br><span class="line">    <span class="keyword">if</span> (<span class="type">ProducerCompressionCodec</span>.name.equals(compressionType))</span><br><span class="line">      producerCompression</span><br><span class="line">    <span class="keyword">else</span></span><br><span class="line">      getCompressionCodec(compressionType)</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>sourceCodec</code> 为 <code>recordBatch</code> 上的编码，即表示从 producer 端发来的这批消息的编码。 <code>targetCodec</code> 为 broker 端配置的压缩编码，从函数 <code>getTargetCompressionCodec</code> 可以看出最终存储消息的目标编码是结合 broker 端的 <code>compressionType</code> 和 producer 端的 <code>producerCompression</code> 综合判断的：当 <code>compressionType</code> 为 <code>producer</code> 时直接采用 producer 端的 <code>producerCompression</code>，否则就采用 broker 端自身的编码设置 <code>compressionType</code>。从 <code>brokerCompressionCodecs</code> 的取值可看出，<code>compression.type</code> 的可选值为 <code>[uncompressed, zstd, lz4, snappy, gzip, producer]</code>。其中 <code>uncompressed</code> 与 <code>none</code> 是等价的，<code>producer</code> 不用多说，其余四个则是标准的压缩类型。</p>
+<h3 id="broker-和-topic-两个级别"><a href="#broker-和-topic-两个级别" class="headerlink" title="broker 和 topic 两个级别"></a>broker 和 topic 两个级别</h3><p>在 broker 端的压缩配置分为两个级别：全局的 broker 级别 和 局部的 topic 级别。顾名思义，如果配置的是 broker 级别，则对于该 Kafka 集群中所有的 topic 都是生效的。但如果 topic 级别配置了自己的压缩类型，则会覆盖 broker 全局的配置，以 topic 自己配置的为准。 </p>
+<h4 id="broker-级别"><a href="#broker-级别" class="headerlink" title="broker 级别"></a>broker 级别</h4><p>要配置 broker 级别的压缩类型，可通过 <code>configs</code> 命令修改 <code>compression.type</code> 配置项取值。此处要使修改生效，是否需要重启 broker 取决于 Kafak 的版本，在 1.1.0 之前，任何配置项的改动都需要重启 broker 才生效，而从 1.1.0 版本开始，Kafka 引入了动态 broker 参数，将配置项分为三类：<code>read-only</code>、<code>per-broker</code> 和 <code>cluster-wide</code>，第一类跟原来一样需重启才生效，而后面两类都是动态生效的，只是影响范围不同，关于 Kafka 动态参数，以后单开博文介绍。从 <a href="https://kafka.apache.org/documentation/#brokerconfigs_compression.type" target="_blank" rel="noopener">官网</a> 可以看到，<code>compression.type</code> 是属于 <code>cluster-wide</code> 的，如果是 1.1.0 及之后的版本，则无需重启 broker。</p>
+<h4 id="topic-级别"><a href="#topic-级别" class="headerlink" title="topic 级别"></a>topic 级别</h4><p>topic 的配置分为两部分，一部分是 topic 特有的，如 partitions 等，另一部分则是默认采用 broker 配置，但也可以覆盖。如果要定义 topic 级别的压缩，可以在 topic 创建时通过 –config 选项覆盖配置项 <code>compression.type</code> 的取值，命令如下：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sh bin/kafka-topics.sh --create --topic my-topic --replication-factor 1 --partitions 1 --config compression.type=snappy</span><br></pre></td></tr></table></figure>
+
+<p>当然也可以通过 <code>configs</code> 命令修改 topic 的 <code>compression.type</code> 取值，命令如下：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">bin/kafka-configs.sh --entity-type topics --entity-name my-topic --alter --add-config compression.type=snappy</span><br></pre></td></tr></table></figure>
+
+<h2 id="在-Producer-端压缩"><a href="#在-Producer-端压缩" class="headerlink" title="在 Producer 端压缩"></a>在 Producer 端压缩</h2><h3 id="compression-type-属性-1"><a href="#compression-type-属性-1" class="headerlink" title="compression.type 属性"></a>compression.type 属性</h3><p>跟 broker 端一样，producer 端的压缩配置属性依然是 <code>compression.type</code>，只不过默认值和可选值有所不同。默认值为 <code>none</code>，表示不压缩，可选值为枚举类 <code>CompressionType</code> 中所有实例对应 <code>name</code> 的列表。</p>
+<h3 id="开启压缩的方式"><a href="#开启压缩的方式" class="headerlink" title="开启压缩的方式"></a>开启压缩的方式</h3><p>直接在代码层面更改 producer 的 config，示例如下。但需要注意的是，改完 config 之后，需要重启 producer 端的应用程序，压缩才会生效。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Configuration</span></span><br><span class="line"><span class="meta">@EnableKafka</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">KafkaProducerConfig</span> </span>&#123;</span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="keyword">public</span> KafkaTemplate&lt;<span class="keyword">byte</span>[], <span class="keyword">byte</span>[]&gt; kafkaTemplate() &#123;</span><br><span class="line">        Map&lt;String, Object&gt; config = <span class="keyword">new</span> HashMap&lt;&gt;();</span><br><span class="line">        config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokerServer);</span><br><span class="line">        config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, keySerializer);</span><br><span class="line">        config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, valueSerializer);</span><br><span class="line">        config.put(ProducerConfig.ACKS_CONFIG, <span class="string">"all"</span>);</span><br><span class="line">        config.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, <span class="string">"1"</span>);</span><br><span class="line">        config.put(ProducerConfig.BATCH_SIZE_CONFIG, <span class="string">"16384"</span>);</span><br><span class="line">        config.put(ProducerConfig.RETRIES_CONFIG, Integer.MAX_VALUE);</span><br><span class="line">        config.put(ProducerConfig.RETRY_BACKOFF_MS_CONFIG, <span class="string">"3000"</span>);</span><br><span class="line">        config.put(ProducerConfig.LINGER_MS_CONFIG, <span class="string">"1"</span>);</span><br><span class="line">        ...</span><br><span class="line">        <span class="comment">// 开启 Snappy 压缩</span></span><br><span class="line">        config.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, CompressionType.SNAPPY.name);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">new</span> KafkaTemplate&lt;&gt;(<span class="keyword">new</span> DefaultKafkaProducerFactory&lt;&gt;(config));</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="压缩和解压的位置"><a href="#压缩和解压的位置" class="headerlink" title="压缩和解压的位置"></a>压缩和解压的位置</h1><h2 id="何处会压缩"><a href="#何处会压缩" class="headerlink" title="何处会压缩"></a>何处会压缩</h2><p>可能产生压缩的地方有两处：producer 端和 broker 端。</p>
+<h3 id="producer-端"><a href="#producer-端" class="headerlink" title="producer 端"></a>producer 端</h3><p>producer 端发生压缩的唯一条件就是在 producer 端为属性 <code>compression.type</code> 配置了除 <code>none</code> 之外有效的压缩类型。此时，producer 在向所负责的所有 topics 发消息之前，都会将消息压缩处理。</p>
+<h3 id="broker-端"><a href="#broker-端" class="headerlink" title="broker 端"></a>broker 端</h3><p>对于 broker 端，产生压缩的情况就复杂得多，这不仅取决于 broker 端自身的压缩编码 <code>targetCodec</code> 是否是需要压缩的类型，还取决于 <code>targetCodec</code> 跟 producer 端的 <code>sourceCodec</code> 是否相同，除此之外，还跟消息格式的 <code>magic</code> 版本有关。直接看代码，broker 端的消息读写是由 <code>UnifiedLog</code> 负责的，消息持久化的核心入口是 <code>append</code> 方法，代码如下：</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">UnifiedLog</span>(<span class="params">...</span>) <span class="keyword">extends</span> <span class="title">Logging</span> <span class="keyword">with</span> <span class="title">KafkaMetricsGroup</span> </span>&#123;</span><br><span class="line">  ...</span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">append</span></span>(records: <span class="type">MemoryRecords</span>,</span><br><span class="line">                     origin: <span class="type">AppendOrigin</span>,</span><br><span class="line">                     interBrokerProtocolVersion: <span class="type">ApiVersion</span>,</span><br><span class="line">                     validateAndAssignOffsets: <span class="type">Boolean</span>,</span><br><span class="line">                     leaderEpoch: <span class="type">Int</span>,</span><br><span class="line">                     requestLocal: <span class="type">Option</span>[<span class="type">RequestLocal</span>],</span><br><span class="line">                     ignoreRecordSize: <span class="type">Boolean</span>): <span class="type">LogAppendInfo</span> = &#123;</span><br><span class="line">    ...</span><br><span class="line">    <span class="keyword">val</span> appendInfo = analyzeAndValidateRecords(records, origin, ignoreRecordSize, leaderEpoch)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// return if we have no valid messages or if this is a duplicate of the last appended entry</span></span><br><span class="line">    <span class="keyword">if</span> (appendInfo.shallowCount == <span class="number">0</span>) appendInfo</span><br><span class="line">    <span class="keyword">else</span> &#123;</span><br><span class="line"></span><br><span class="line">      <span class="comment">// trim any invalid bytes or partial messages before appending it to the on-disk log</span></span><br><span class="line">      <span class="keyword">var</span> validRecords = trimInvalidBytes(records, appendInfo)</span><br><span class="line"></span><br><span class="line">      <span class="comment">// they are valid, insert them in the log</span></span><br><span class="line">      lock synchronized &#123;</span><br><span class="line">        maybeHandleIOException(<span class="string">s"Error while appending records to <span class="subst">$topicPartition</span> in dir <span class="subst">$&#123;dir.getParent&#125;</span>"</span>) &#123;</span><br><span class="line">          localLog.checkIfMemoryMappedBufferClosed()</span><br><span class="line">          <span class="keyword">if</span> (validateAndAssignOffsets) &#123;</span><br><span class="line">            <span class="comment">// assign offsets to the message set</span></span><br><span class="line">            <span class="keyword">val</span> offset = <span class="keyword">new</span> <span class="type">LongRef</span>(localLog.logEndOffset)</span><br><span class="line">            appendInfo.firstOffset = <span class="type">Some</span>(<span class="type">LogOffsetMetadata</span>(offset.value))</span><br><span class="line">            <span class="keyword">val</span> now = time.milliseconds</span><br><span class="line">            <span class="keyword">val</span> validateAndOffsetAssignResult = <span class="keyword">try</span> &#123;</span><br><span class="line">              <span class="type">LogValidator</span>.validateMessagesAndAssignOffsets(validRecords,</span><br><span class="line">                topicPartition,</span><br><span class="line">                offset,</span><br><span class="line">                time,</span><br><span class="line">                now,</span><br><span class="line">                appendInfo.sourceCodec,</span><br><span class="line">                appendInfo.targetCodec,</span><br><span class="line">                config.compact,</span><br><span class="line">                config.recordVersion.value,</span><br><span class="line">                config.messageTimestampType,</span><br><span class="line">                config.messageTimestampDifferenceMaxMs,</span><br><span class="line">                leaderEpoch,</span><br><span class="line">                origin,</span><br><span class="line">                interBrokerProtocolVersion,</span><br><span class="line">                brokerTopicStats,</span><br><span class="line">                requestLocal.getOrElse(<span class="keyword">throw</span> <span class="keyword">new</span> <span class="type">IllegalArgumentException</span>(</span><br><span class="line">                  <span class="string">"requestLocal should be defined if assignOffsets is true"</span>)))</span><br><span class="line">            &#125; <span class="keyword">catch</span> &#123;</span><br><span class="line">              <span class="keyword">case</span> e: <span class="type">IOException</span> =&gt;</span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> <span class="type">KafkaException</span>(<span class="string">s"Error validating messages while appending to log <span class="subst">$name</span>"</span>, e)</span><br><span class="line">            &#125;</span><br><span class="line">            ...</span><br><span class="line">          &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">// we are taking the offsets we are given</span></span><br><span class="line">            ...</span><br><span class="line">          &#125;</span><br><span class="line">          ...</span><br><span class="line">          maybeDuplicate <span class="keyword">match</span> &#123;</span><br><span class="line">            <span class="keyword">case</span> <span class="type">Some</span>(duplicate) =&gt;</span><br><span class="line">              ...</span><br><span class="line">              localLog.append(appendInfo.lastOffset, appendInfo.maxTimestamp, appendInfo.offsetOfMaxTimestamp, validRecords)</span><br><span class="line">              updateHighWatermarkWithLogEndOffset()</span><br><span class="line">              ...</span><br><span class="line">              trace(<span class="string">s"Appended message set with last offset: <span class="subst">$&#123;appendInfo.lastOffset&#125;</span>, "</span> +</span><br><span class="line">                <span class="string">s"first offset: <span class="subst">$&#123;appendInfo.firstOffset&#125;</span>, "</span> +</span><br><span class="line">                <span class="string">s"next offset: <span class="subst">$&#123;localLog.logEndOffset&#125;</span>, "</span> +</span><br><span class="line">                <span class="string">s"and messages: <span class="subst">$validRecords</span>"</span>)</span><br><span class="line"></span><br><span class="line">              <span class="keyword">if</span> (localLog.unflushedMessages &gt;= config.flushInterval) flush(<span class="literal">false</span>)</span><br><span class="line">          &#125;</span><br><span class="line">          appendInfo</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>可以看到，先是采用 <code>analyzeAndValidateRecords</code> 在 <code>recordBatch</code> 的维度对批量消息整体做校验，比如 CRC、size 等，不会细化到单条消息，所以这里不会涉及解压。这一步通过之后，会采用 <code>LogValidator.validateMessagesAndAssignOffsets</code> 对 <code>recordBatch</code>以及单条消息做进一步验证并为消息分配 <code>offset</code>，<strong>该过程可能涉及解压</strong>。完成这一步之后，调用 <code>localLog.append</code> 方法将消息追加到本地日志，这一步才是真正的落盘。我们继续关注可能发生解压的 <code>LogValidator</code> 部分，代码如下：</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[log] <span class="class"><span class="keyword">object</span> <span class="title">LogValidator</span> <span class="keyword">extends</span> <span class="title">Logging</span> </span>&#123;</span><br><span class="line">  <span class="keyword">private</span>[log] <span class="function"><span class="keyword">def</span> <span class="title">validateMessagesAndAssignOffsets</span></span>(records: <span class="type">MemoryRecords</span>,</span><br><span class="line">                                                    topicPartition: <span class="type">TopicPartition</span>,</span><br><span class="line">                                                    offsetCounter: <span class="type">LongRef</span>,</span><br><span class="line">                                                    time: <span class="type">Time</span>,</span><br><span class="line">                                                    now: <span class="type">Long</span>,</span><br><span class="line">                                                    sourceCodec: <span class="type">CompressionCodec</span>,</span><br><span class="line">                                                    targetCodec: <span class="type">CompressionCodec</span>,</span><br><span class="line">                                                    compactedTopic: <span class="type">Boolean</span>,</span><br><span class="line">                                                    magic: <span class="type">Byte</span>,</span><br><span class="line">                                                    timestampType: <span class="type">TimestampType</span>,</span><br><span class="line">                                                    timestampDiffMaxMs: <span class="type">Long</span>,</span><br><span class="line">                                                    partitionLeaderEpoch: <span class="type">Int</span>,</span><br><span class="line">                                                    origin: <span class="type">AppendOrigin</span>,</span><br><span class="line">                                                    interBrokerProtocolVersion: <span class="type">ApiVersion</span>,</span><br><span class="line">                                                    brokerTopicStats: <span class="type">BrokerTopicStats</span>,</span><br><span class="line">                                                    requestLocal: <span class="type">RequestLocal</span>): <span class="type">ValidationAndOffsetAssignResult</span> = &#123;</span><br><span class="line">    <span class="keyword">if</span> (sourceCodec == <span class="type">NoCompressionCodec</span> &amp;&amp; targetCodec == <span class="type">NoCompressionCodec</span>) &#123;</span><br><span class="line">      <span class="comment">// check the magic value</span></span><br><span class="line">      <span class="keyword">if</span> (!records.hasMatchingMagic(magic))</span><br><span class="line">        convertAndAssignOffsetsNonCompressed(records, topicPartition, offsetCounter, compactedTopic, time, now, timestampType,</span><br><span class="line">          timestampDiffMaxMs, magic, partitionLeaderEpoch, origin, brokerTopicStats)</span><br><span class="line">      <span class="keyword">else</span></span><br><span class="line">        <span class="comment">// Do in-place validation, offset assignment and maybe set timestamp</span></span><br><span class="line">        assignOffsetsNonCompressed(records, topicPartition, offsetCounter, now, compactedTopic, timestampType, timestampDiffMaxMs,</span><br><span class="line">          partitionLeaderEpoch, origin, magic, brokerTopicStats)</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      validateMessagesAndAssignOffsetsCompressed(records, topicPartition, offsetCounter, time, now, sourceCodec,</span><br><span class="line">        targetCodec, compactedTopic, magic, timestampType, timestampDiffMaxMs, partitionLeaderEpoch, origin,</span><br><span class="line">        interBrokerProtocolVersion, brokerTopicStats, requestLocal)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>从上可知，当 broker 端配置的压缩编码 <code>targetCodec</code> 与所收到的批量消息的压缩编码 <code>sourceCodec</code> 都为 <code>none</code> 即不压缩时，会再检查消息格式的版本，如果与 broker 端配置的版本不同，则需要先将原批量消息转换为目标版本 <code>magic</code> 对应格式的新批量消息，然后再在新批量消息中分配 <code>offset</code>；否则直接在原批量消息中就地分配 <code>offset</code>，此过程均不涉及解压缩。这里稍微解释下分配 <code>offset</code> 的逻辑，我们知道在 Kafka 中 <code>offset</code> 是 <code>partition</code> 下每条消息的唯一标识，consumer 端也是根据 <code>offset</code> 来追踪消费进度，而 <code>offset</code> 的生成和写入则是在 broker 端，就是此处提到的 <code>offset</code> 分配。理论上说，broker 需要为每条消息都分配一个 <code>offset</code> 的，但在实践中，因为用的是 <code>recordBatch</code>，内部消息是顺序排列的且总记录数是知道的，而 <code>recordBatch</code> 本身会记录 <code>baseOffset</code> ，故通常只需设置 <code>lastOffset</code>即可。唯一的例外是，当因消息格式转换或解压缩而需要创建新的 <code>recordBatch</code>时，会调用 <code>memoryRecordsBuilder</code> 的 <code>appendWithOffset</code> 方法为每一条消息记录分配 <code>offset</code>。</p>
+<p>当 <code>targetCodec</code> 与 <code>sourceCodec</code> 至少有一个不为 <code>none</code> 即需要压缩时，情况就复杂一些，具体逻辑都在 <code>validateMessagesAndAssignOffsetsCompressed</code>方法中，</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[log] <span class="class"><span class="keyword">object</span> <span class="title">LogValidator</span> <span class="keyword">extends</span> <span class="title">Logging</span> </span>&#123;</span><br><span class="line">  ...</span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">validateMessagesAndAssignOffsetsCompressed</span></span>(...): <span class="type">ValidationAndOffsetAssignResult</span> = &#123;</span><br><span class="line">    ...</span><br><span class="line">    <span class="comment">// No in place assignment situation 1</span></span><br><span class="line">    <span class="keyword">var</span> inPlaceAssignment = sourceCodec == targetCodec</span><br><span class="line"></span><br><span class="line">    <span class="keyword">var</span> maxTimestamp = <span class="type">RecordBatch</span>.<span class="type">NO_TIMESTAMP</span></span><br><span class="line">    <span class="keyword">val</span> expectedInnerOffset = <span class="keyword">new</span> <span class="type">LongRef</span>(<span class="number">0</span>)</span><br><span class="line">    <span class="keyword">val</span> validatedRecords = <span class="keyword">new</span> mutable.<span class="type">ArrayBuffer</span>[<span class="type">Record</span>]</span><br><span class="line"></span><br><span class="line">    <span class="keyword">var</span> uncompressedSizeInBytes = <span class="number">0</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// Assume there's only one batch with compressed memory records; otherwise, return InvalidRecordException</span></span><br><span class="line">    <span class="comment">// One exception though is that with format smaller than v2, if sourceCodec is noCompression, then each batch is actually</span></span><br><span class="line">    <span class="comment">// a single record so we'd need to special handle it by creating a single wrapper batch that includes all the records</span></span><br><span class="line">    <span class="keyword">val</span> firstBatch = getFirstBatchAndMaybeValidateNoMoreBatches(records, sourceCodec)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// No in place assignment situation 2 and 3: we only need to check for the first batch because:</span></span><br><span class="line">    <span class="comment">//  1. For most cases (compressed records, v2, for example), there's only one batch anyways.</span></span><br><span class="line">    <span class="comment">//  2. For cases that there may be multiple batches, all batches' magic should be the same.</span></span><br><span class="line">    <span class="keyword">if</span> (firstBatch.magic != toMagic || toMagic == <span class="type">RecordBatch</span>.<span class="type">MAGIC_VALUE_V0</span>)</span><br><span class="line">      inPlaceAssignment = <span class="literal">false</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// Do not compress control records unless they are written compressed</span></span><br><span class="line">    <span class="keyword">if</span> (sourceCodec == <span class="type">NoCompressionCodec</span> &amp;&amp; firstBatch.isControlBatch)</span><br><span class="line">      inPlaceAssignment = <span class="literal">true</span></span><br><span class="line"></span><br><span class="line">    records.batches.forEach &#123; batch =&gt;</span><br><span class="line">      validateBatch(topicPartition, firstBatch, batch, origin, toMagic, brokerTopicStats)</span><br><span class="line">      uncompressedSizeInBytes += <span class="type">AbstractRecords</span>.recordBatchHeaderSizeInBytes(toMagic, batch.compressionType())</span><br><span class="line"></span><br><span class="line">      <span class="comment">// if we are on version 2 and beyond, and we know we are going for in place assignment,</span></span><br><span class="line">      <span class="comment">// then we can optimize the iterator to skip key / value / headers since they would not be used at all</span></span><br><span class="line">      <span class="keyword">val</span> recordsIterator = <span class="keyword">if</span> (inPlaceAssignment &amp;&amp; firstBatch.magic &gt;= <span class="type">RecordBatch</span>.<span class="type">MAGIC_VALUE_V2</span>)</span><br><span class="line">        batch.skipKeyValueIterator(requestLocal.bufferSupplier)</span><br><span class="line">      <span class="keyword">else</span></span><br><span class="line">        batch.streamingIterator(requestLocal.bufferSupplier)</span><br><span class="line"></span><br><span class="line">      <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="keyword">val</span> recordErrors = <span class="keyword">new</span> <span class="type">ArrayBuffer</span>[<span class="type">ApiRecordError</span>](<span class="number">0</span>)</span><br><span class="line">        <span class="comment">// this is a hot path and we want to avoid any unnecessary allocations.</span></span><br><span class="line">        <span class="keyword">var</span> batchIndex = <span class="number">0</span></span><br><span class="line">        recordsIterator.forEachRemaining &#123; record =&gt;</span><br><span class="line">          <span class="keyword">val</span> expectedOffset = expectedInnerOffset.getAndIncrement()</span><br><span class="line">          <span class="keyword">val</span> recordError = validateRecordCompression(batchIndex, record).orElse &#123;</span><br><span class="line">            validateRecord(batch, topicPartition, record, batchIndex, now,</span><br><span class="line">              timestampType, timestampDiffMaxMs, compactedTopic, brokerTopicStats).orElse &#123;</span><br><span class="line">              <span class="keyword">if</span> (batch.magic &gt; <span class="type">RecordBatch</span>.<span class="type">MAGIC_VALUE_V0</span> &amp;&amp; toMagic &gt; <span class="type">RecordBatch</span>.<span class="type">MAGIC_VALUE_V0</span>) &#123;</span><br><span class="line">                <span class="keyword">if</span> (record.timestamp &gt; maxTimestamp)</span><br><span class="line">                  maxTimestamp = record.timestamp</span><br><span class="line"></span><br><span class="line">                <span class="comment">// Some older clients do not implement the V1 internal offsets correctly.</span></span><br><span class="line">                <span class="comment">// Historically the broker handled this by rewriting the batches rather</span></span><br><span class="line">                <span class="comment">// than rejecting the request. We must continue this handling here to avoid</span></span><br><span class="line">                <span class="comment">// breaking these clients.</span></span><br><span class="line">                <span class="keyword">if</span> (record.offset != expectedOffset)</span><br><span class="line">                  inPlaceAssignment = <span class="literal">false</span></span><br><span class="line">              &#125;</span><br><span class="line">              <span class="type">None</span></span><br><span class="line">            &#125;</span><br><span class="line">          &#125;</span><br><span class="line"></span><br><span class="line">          recordError <span class="keyword">match</span> &#123;</span><br><span class="line">            <span class="keyword">case</span> <span class="type">Some</span>(e) =&gt; recordErrors += e</span><br><span class="line">            <span class="keyword">case</span> <span class="type">None</span> =&gt;</span><br><span class="line">              uncompressedSizeInBytes += record.sizeInBytes()</span><br><span class="line">              validatedRecords += record</span><br><span class="line">          &#125;</span><br><span class="line">         batchIndex += <span class="number">1</span></span><br><span class="line">        &#125;</span><br><span class="line">        processRecordErrors(recordErrors)</span><br><span class="line">      &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">        recordsIterator.close()</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (!inPlaceAssignment) &#123;</span><br><span class="line">      <span class="keyword">val</span> (producerId, producerEpoch, sequence, isTransactional) = &#123;</span><br><span class="line">        <span class="comment">// note that we only reassign offsets for requests coming straight from a producer. For records with magic V2,</span></span><br><span class="line">        <span class="comment">// there should be exactly one RecordBatch per request, so the following is all we need to do. For Records</span></span><br><span class="line">        <span class="comment">// with older magic versions, there will never be a producer id, etc.</span></span><br><span class="line">        <span class="keyword">val</span> first = records.batches.asScala.head</span><br><span class="line">        (first.producerId, first.producerEpoch, first.baseSequence, first.isTransactional)</span><br><span class="line">      &#125;</span><br><span class="line">      buildRecordsAndAssignOffsets(toMagic, offsetCounter, time, timestampType, <span class="type">CompressionType</span>.forId(targetCodec.codec),</span><br><span class="line">        now, validatedRecords, producerId, producerEpoch, sequence, isTransactional, partitionLeaderEpoch,</span><br><span class="line">        uncompressedSizeInBytes)</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="comment">// we can update the batch only and write the compressed payload as is;</span></span><br><span class="line">      <span class="comment">// again we assume only one record batch within the compressed set</span></span><br><span class="line">      <span class="keyword">val</span> batch = records.batches.iterator.next()</span><br><span class="line">      <span class="keyword">val</span> lastOffset = offsetCounter.addAndGet(validatedRecords.size) - <span class="number">1</span></span><br><span class="line"></span><br><span class="line">      batch.setLastOffset(lastOffset)</span><br><span class="line"></span><br><span class="line">      <span class="keyword">if</span> (timestampType == <span class="type">TimestampType</span>.<span class="type">LOG_APPEND_TIME</span>)</span><br><span class="line">        maxTimestamp = now</span><br><span class="line"></span><br><span class="line">      <span class="keyword">if</span> (toMagic &gt;= <span class="type">RecordBatch</span>.<span class="type">MAGIC_VALUE_V1</span>)</span><br><span class="line">        batch.setMaxTimestamp(timestampType, maxTimestamp)</span><br><span class="line"></span><br><span class="line">      <span class="keyword">if</span> (toMagic &gt;= <span class="type">RecordBatch</span>.<span class="type">MAGIC_VALUE_V2</span>)</span><br><span class="line">        batch.setPartitionLeaderEpoch(partitionLeaderEpoch)</span><br><span class="line"></span><br><span class="line">      <span class="keyword">val</span> recordConversionStats = <span class="keyword">new</span> <span class="type">RecordConversionStats</span>(uncompressedSizeInBytes, <span class="number">0</span>, <span class="number">0</span>)</span><br><span class="line">      <span class="type">ValidationAndOffsetAssignResult</span>(validatedRecords = records,</span><br><span class="line">        maxTimestamp = maxTimestamp,</span><br><span class="line">        shallowOffsetOfMaxTimestamp = lastOffset,</span><br><span class="line">        messageSizeMaybeChanged = <span class="literal">false</span>,</span><br><span class="line">        recordConversionStats = recordConversionStats)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>可以看到，<code>inPlaceAssignment</code> 是用于标识是否可以原地修改 <code>recordBatch</code> 来分配 <code>offset</code>，有三种情况不能原地修改：</p>
+<ul>
+<li>sourceCodec 和 targetCodec 不同，这个比较好理解，编码不同，构建目标 payload 时原 <code>recordBatch</code>  自然不能复用。</li>
+<li>目标消息格式版本 <code>magic</code> 与 broker 接收到的 <code>recordBatch</code> 的 <code>magic</code> 不同，此时需要消息格式转换，需要构建新的 <code>recordBatch</code>，这个跟第一种情况是一样的，无法复用原 <code>recordBatch</code>。</li>
+<li>目标消息格式版本为 <code>V0</code>，因为老版本 <code>V0</code> 格式的消息，需要为每条消息重新分配绝对 <code>offset</code>，无法复用原 <code>recordBatch</code>。</li>
+</ul>
+<p>此时，<code>inPlaceAssignment</code> 为 false，直接走 <code>buildRecordsAndAssignOffsets</code> 逻辑来构建新的 <code>recordBatch</code>，此时是否压缩取决于 <code>targetCodec</code>，如果不为<code>none</code>，则此处会按照 <code>targetCodec</code> 编码进行压缩。</p>
+<p>除了上述三种情况之外，都是可以原地修改，此时可以直接复用原 <code>recordBatch</code>来构建目标消息的 payload，此时不存在压缩处理。</p>
+<h2 id="何处会解压"><a href="#何处会解压" class="headerlink" title="何处会解压"></a>何处会解压</h2><p>可能发生解压的地方依然是两处：consumer 端和 broker 端。</p>
+<h3 id="consumer-端"><a href="#consumer-端" class="headerlink" title="consumer 端"></a>consumer 端</h3><p>consumer 端发生解压的唯一条件就是从 broker 端拉取到的消息是带压缩的。此时，consumer 会根据 <code>recordBatch</code> 中 <code>compressionType</code> 来对消息进行解压，具体细节后面源码分析部分会讲。</p>
+<h3 id="broker-端-1"><a href="#broker-端-1" class="headerlink" title="broker 端"></a>broker 端</h3><p>broker 端是否发生解压取决于 producer 发过来的批量消息 <code>recordBatch</code> 是否是压缩的：如果 producer 开启了压缩，则会发生解压，否则不会。原因简单说下，在 broker 端持久化消息前，会对消息做各种验证，此时必然会迭代 <code>recordBatch</code>，而在迭代的过程中，会直接采用 <code>recordBatch</code> 上的 <code>compressionType</code> 对消息字节流进行处理，是否解压取决于 <code>compressionType</code> 是否是压缩类型。关于这点，可以在 <code>LogValidator</code> 的 <code>validateMessagesAndAssignOffsets</code> 方法实现中可以看到，在 <code>convertAndAssignOffsetsNonCompressed</code>、<code>assignOffsetsNonCompressed</code> 和 <code>validateMessagesAndAssignOffsetsCompressed</code> 三个不同的分支中，都会看到 <code>records.batches.forEach {...}</code> 的身影，而在后面的源码分析中会发现，在 <code>recordBatch</code> 的迭代器逻辑中，直接采用的 <code>compressionType</code> 的解压逻辑对消息字节流读取的。也就是说，如果 <code>recordBatch</code> 是压缩的 ，只要对其进行了迭代访问，则会自动触发解压逻辑。</p>
+<h1 id="压缩和解压原理"><a href="#压缩和解压原理" class="headerlink" title="压缩和解压原理"></a>压缩和解压原理</h1><p>压缩和解压涉及到几个关键的类：<code>CompressionType</code> 、<code>MemoryRecordsBuilder</code>、<code>DefaultRecordBatch</code>、<code>AbstractLegacyRecordBatch</code>。其中 <code>CompressionType</code> 是压缩相关的枚举，集压缩定义和实现为一体；<code>MemoryRecordsBuilder</code> 是负责将新的消息数据写入内存 buffer，即调用 <code>CompressionType</code> 中的压缩逻辑 <code>wrapForOutput</code> 来写入消息；而 <code>DefaultRecordBatch</code> 和 <code>AbstractLegacyRecordBatch</code> 则是负责读取消息数据，即调用 <code>CompressionType</code> 的解压逻辑 <code>wrapForInput</code> 将消息还原为无压缩数据。只不过二者区别是，前者是用于处理新版本格式的消息（即 <code>magic &gt;= 2</code>），而后者则是处理老版本格式的消息（即 <code>magic 为 0 或 1</code>）。</p>
+<h2 id="CompressionType"><a href="#CompressionType" class="headerlink" title="CompressionType"></a>CompressionType</h2><p>在说 <code>CompressionType</code> 之前，我们先看下 <code>CompressionCodec</code> 这个 Scala 脚本。</p>
+<h3 id="CompressionCodec"><a href="#CompressionCodec" class="headerlink" title="CompressionCodec"></a>CompressionCodec</h3><p>部分源码如下，</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">...</span><br><span class="line"><span class="keyword">case</span> <span class="class"><span class="keyword">object</span> <span class="title">GZIPCompressionCodec</span> <span class="keyword">extends</span> <span class="title">CompressionCodec</span> <span class="keyword">with</span> <span class="title">BrokerCompressionCodec</span> </span>&#123;</span><br><span class="line">  <span class="keyword">val</span> codec = <span class="number">1</span></span><br><span class="line">  <span class="keyword">val</span> name = <span class="string">"gzip"</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">case</span> <span class="class"><span class="keyword">object</span> <span class="title">SnappyCompressionCodec</span> <span class="keyword">extends</span> <span class="title">CompressionCodec</span> <span class="keyword">with</span> <span class="title">BrokerCompressionCodec</span> </span>&#123;</span><br><span class="line">  <span class="keyword">val</span> codec = <span class="number">2</span></span><br><span class="line">  <span class="keyword">val</span> name = <span class="string">"snappy"</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">case</span> <span class="class"><span class="keyword">object</span> <span class="title">LZ4CompressionCodec</span> <span class="keyword">extends</span> <span class="title">CompressionCodec</span> <span class="keyword">with</span> <span class="title">BrokerCompressionCodec</span> </span>&#123;</span><br><span class="line">  <span class="keyword">val</span> codec = <span class="number">3</span></span><br><span class="line">  <span class="keyword">val</span> name = <span class="string">"lz4"</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">case</span> <span class="class"><span class="keyword">object</span> <span class="title">ZStdCompressionCodec</span> <span class="keyword">extends</span> <span class="title">CompressionCodec</span> <span class="keyword">with</span> <span class="title">BrokerCompressionCodec</span> </span>&#123;</span><br><span class="line">  <span class="keyword">val</span> codec = <span class="number">4</span></span><br><span class="line">  <span class="keyword">val</span> name = <span class="string">"zstd"</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">case</span> <span class="class"><span class="keyword">object</span> <span class="title">NoCompressionCodec</span> <span class="keyword">extends</span> <span class="title">CompressionCodec</span> <span class="keyword">with</span> <span class="title">BrokerCompressionCodec</span> </span>&#123;</span><br><span class="line">  <span class="keyword">val</span> codec = <span class="number">0</span></span><br><span class="line">  <span class="keyword">val</span> name = <span class="string">"none"</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">case</span> <span class="class"><span class="keyword">object</span> <span class="title">UncompressedCodec</span> <span class="keyword">extends</span> <span class="title">BrokerCompressionCodec</span> </span>&#123;</span><br><span class="line">  <span class="keyword">val</span> name = <span class="string">"uncompressed"</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">case</span> <span class="class"><span class="keyword">object</span> <span class="title">ProducerCompressionCodec</span> <span class="keyword">extends</span> <span class="title">BrokerCompressionCodec</span> </span>&#123;</span><br><span class="line">  <span class="keyword">val</span> name = <span class="string">"producer"</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>该脚本定义了 <code>GZIPCompressionCodec</code> 等共 7 个 case object，可类比于 Java 中枚举，这些 case object 中的 <code>name</code> 集合则刚好覆盖了前文所提到的属性 <code>compression.type</code> 的所有可选值，包括 producer 端和 broker 端的。而与 <code>name</code> 绑定在一起的 <code>codec</code> 则是最终真正写入消息体的压缩编码，<code>name</code> 只是为了可读性友好。从上可知，压缩编码<code>codec</code> 的有效取值只有 <code>0~4</code>，分别对应 <code>none</code>、<code>gzip</code>、<code>snappy</code>、<code>lz4</code>和<code>zstd</code>，而这五种取值恰好是 <code>CompressionType</code> 中定义的五种枚举常量。</p>
+<p>由此可知，<code>CompressionCodec</code>是面向配置属性 <code>compression.type</code>的可选值的，并将数值化的压缩编码 <code>codec</code> 映射为可读性强的 <code>name</code>；而 <code>CompressionType</code>则是定义了与压缩编码对应的枚举常量，二者通过 <code>name</code> 关联。</p>
+<h3 id="CompressionType-源码"><a href="#CompressionType-源码" class="headerlink" title="CompressionType 源码"></a>CompressionType 源码</h3><p><code>CompressionType</code> 定义了与压缩编码对应的五种压缩类型枚举，并且通过用于压缩的 <code>wrapForOutput</code>和用于解压的 <code>wrapForInput</code>这两个抽象方法将每种压缩类型与对应的压缩实现绑定在一起，既避免了常规的 <code>if-else</code> 判断，也将压缩的定义与实现完全收敛到 <code>CompressionType</code> ，符合单一职责原则。其实类似这种优雅的设计在 JDK 中也能经常看到其身影，比如 <code>TimeUnit</code>。直接看源码，</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">enum</span> CompressionType &#123;</span><br><span class="line">    ...</span><br><span class="line">    GZIP(<span class="number">1</span>, <span class="string">"gzip"</span>, <span class="number">1.0f</span>) &#123;</span><br><span class="line">        <span class="meta">@Override</span></span><br><span class="line">        <span class="function"><span class="keyword">public</span> OutputStream <span class="title">wrapForOutput</span><span class="params">(ByteBufferOutputStream buffer, <span class="keyword">byte</span> messageVersion)</span> </span>&#123;</span><br><span class="line">            <span class="keyword">try</span> &#123;</span><br><span class="line">                <span class="keyword">return</span> <span class="keyword">new</span> BufferedOutputStream(<span class="keyword">new</span> GZIPOutputStream(buffer, <span class="number">8</span> * <span class="number">1024</span>), <span class="number">16</span> * <span class="number">1024</span>);</span><br><span class="line">            &#125; <span class="keyword">catch</span> (Exception e) &#123;</span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> KafkaException(e);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="meta">@Override</span></span><br><span class="line">        <span class="function"><span class="keyword">public</span> InputStream <span class="title">wrapForInput</span><span class="params">(ByteBuffer buffer, <span class="keyword">byte</span> messageVersion, BufferSupplier decompressionBufferSupplier)</span> </span>&#123;</span><br><span class="line">            <span class="keyword">try</span> &#123;</span><br><span class="line">                <span class="comment">// Set output buffer (uncompressed) to 16 KB (none by default) and input buffer (compressed) to</span></span><br><span class="line">                <span class="comment">// 8 KB (0.5 KB by default) to ensure reasonable performance in cases where the caller reads a small</span></span><br><span class="line">                <span class="comment">// number of bytes (potentially a single byte)</span></span><br><span class="line">                <span class="keyword">return</span> <span class="keyword">new</span> BufferedInputStream(<span class="keyword">new</span> GZIPInputStream(<span class="keyword">new</span> ByteBufferInputStream(buffer), <span class="number">8</span> * <span class="number">1024</span>),</span><br><span class="line">                        <span class="number">16</span> * <span class="number">1024</span>);</span><br><span class="line">            &#125; <span class="keyword">catch</span> (Exception e) &#123;</span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> KafkaException(e);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;,</span><br><span class="line">    ...</span><br><span class="line">    ZSTD(<span class="number">4</span>, <span class="string">"zstd"</span>, <span class="number">1.0f</span>) &#123;</span><br><span class="line">        <span class="meta">@Override</span></span><br><span class="line">        <span class="function"><span class="keyword">public</span> OutputStream <span class="title">wrapForOutput</span><span class="params">(ByteBufferOutputStream buffer, <span class="keyword">byte</span> messageVersion)</span> </span>&#123;</span><br><span class="line">            <span class="keyword">return</span> ZstdFactory.wrapForOutput(buffer);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="meta">@Override</span></span><br><span class="line">        <span class="function"><span class="keyword">public</span> InputStream <span class="title">wrapForInput</span><span class="params">(ByteBuffer buffer, <span class="keyword">byte</span> messageVersion, BufferSupplier decompressionBufferSupplier)</span> </span>&#123;</span><br><span class="line">            <span class="keyword">return</span> ZstdFactory.wrapForInput(buffer, messageVersion, decompressionBufferSupplier);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;;</span><br><span class="line">    ...</span><br><span class="line">    <span class="comment">// Wrap bufferStream with an OutputStream that will compress data with this CompressionType.</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">abstract</span> OutputStream <span class="title">wrapForOutput</span><span class="params">(ByteBufferOutputStream bufferStream, <span class="keyword">byte</span> messageVersion)</span></span>;</span><br><span class="line">    <span class="comment">// Wrap buffer with an InputStream that will decompress data with this CompressionType.</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">abstract</span> InputStream <span class="title">wrapForInput</span><span class="params">(ByteBuffer buffer, <span class="keyword">byte</span> messageVersion, BufferSupplier decompressionBufferSupplier)</span></span>;</span><br><span class="line"></span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>每种压缩类型对于 <code>wrapForOutput</code> 和 <code>wrapForInput</code> 两方法的具体实现已经很清楚地阐述了压缩和解压的方式，感兴趣的朋友可以从该入口 <code>step in</code> 一探究竟。这里就不细述。当然这只是处理压缩最小的基本单元，为了搞清楚 Kafka 在何处使用它，还得继续看其他几个核心类。</p>
+<p>在此之前，就上述源码，抛开本次主题，我还想谈几个值得学习借鉴的细节，</p>
+<blockquote>
+<ol>
+<li><code>Snappy</code> 和 <code>Zstd</code> 都是用的 <code>XXXFactory</code> 静态方法来构建 Stream 对象，而其他的比如 <code>Lz4</code> 则都是直接通过 <code>new</code> 创建的对象。之所以这么做，我们进一步 <code>step in</code> 就会发现，对于 <code>Snappy</code> 和 <code>Zstd</code>，Kafka 都是直接依赖的第三方库，而其他的则是 JDK 或 Kafka 自己的实现。为了减少第三方库的副作用，<strong>通过此方式将第三方库的类的惰性加载做到极致，这也体现出作者对 Java 类加载时机的充分理解，很精致的处理</strong>。</li>
+<li><code>Gzip</code> 的<code>wrapForInput</code>实现中，在 <a href="https://issues.apache.org/jira/browse/KAFKA-6430" target="_blank" rel="noopener">KAFKA-6430</a> 这个 Improvement 提交中，input buffer 从 0.5 KB 调大到 8 KB，其目的就是能够在一次 Gzip 压缩中处理更多的字节，以获得更高的性能。至少，从 commit 的描述上看，throughput 能翻倍。</li>
+<li>抽象方法 <code>wrapForInput</code> 中暴露的最后一个 BufferSupplier类型的参数 <code>decompressionBufferSupplier</code>，正如方法的参数说明所言，对于比较小的批量消息，如果在 <code>wrapForInput</code> 内部新建 buffer，那么每次方法调用都会新分配buffer，这可能比压缩处理本身更耗时，所以该参数给了一个选择的机会，在外面分配内存，然后方法内循环利用。<strong>在日常的编码中，对于循环中所需的空间，我也经常会思考是每次新建好还是先在外面分配，然后内部循环利用更好，case by case</strong>.</li>
+</ol>
+</blockquote>
+<h2 id="MemoryRecordsBuilder"><a href="#MemoryRecordsBuilder" class="headerlink" title="MemoryRecordsBuilder"></a>MemoryRecordsBuilder</h2><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MemoryRecordsBuilder</span> <span class="keyword">implements</span> <span class="title">AutoCloseable</span> </span>&#123;</span><br><span class="line">    ...</span><br><span class="line">    <span class="comment">// Used to append records, may compress data on the fly</span></span><br><span class="line">    <span class="keyword">private</span> DataOutputStream appendStream;</span><br><span class="line">    ...</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">MemoryRecordsBuilder</span><span class="params">(ByteBufferOutputStream bufferStream,</span></span></span><br><span class="line"><span class="function"><span class="params">                                <span class="keyword">byte</span> magic,</span></span></span><br><span class="line"><span class="function"><span class="params">                                CompressionType compressionType,</span></span></span><br><span class="line"><span class="function"><span class="params">                                TimestampType timestampType,</span></span></span><br><span class="line"><span class="function"><span class="params">                                <span class="keyword">long</span> baseOffset,</span></span></span><br><span class="line"><span class="function"><span class="params">                                <span class="keyword">long</span> logAppendTime,</span></span></span><br><span class="line"><span class="function"><span class="params">                                <span class="keyword">long</span> producerId,</span></span></span><br><span class="line"><span class="function"><span class="params">                                <span class="keyword">short</span> producerEpoch,</span></span></span><br><span class="line"><span class="function"><span class="params">                                <span class="keyword">int</span> baseSequence,</span></span></span><br><span class="line"><span class="function"><span class="params">                                <span class="keyword">boolean</span> isTransactional,</span></span></span><br><span class="line"><span class="function"><span class="params">                                <span class="keyword">boolean</span> isControlBatch,</span></span></span><br><span class="line"><span class="function"><span class="params">                                <span class="keyword">int</span> partitionLeaderEpoch,</span></span></span><br><span class="line"><span class="function"><span class="params">                                <span class="keyword">int</span> writeLimit,</span></span></span><br><span class="line"><span class="function"><span class="params">                                <span class="keyword">long</span> deleteHorizonMs)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (magic &gt; RecordBatch.MAGIC_VALUE_V0 &amp;&amp; timestampType == TimestampType.NO_TIMESTAMP_TYPE)</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException(<span class="string">"TimestampType must be set for magic &gt; 0"</span>);</span><br><span class="line">        <span class="keyword">if</span> (magic &lt; RecordBatch.MAGIC_VALUE_V2) &#123;</span><br><span class="line">            <span class="keyword">if</span> (isTransactional)</span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException(<span class="string">"Transactional records are not supported for magic "</span> + magic);</span><br><span class="line">            <span class="keyword">if</span> (isControlBatch)</span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException(<span class="string">"Control records are not supported for magic "</span> + magic);</span><br><span class="line">            <span class="keyword">if</span> (compressionType == CompressionType.ZSTD)</span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException(<span class="string">"ZStandard compression is not supported for magic "</span> + magic);</span><br><span class="line">            <span class="keyword">if</span> (deleteHorizonMs != RecordBatch.NO_TIMESTAMP)</span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException(<span class="string">"Delete horizon timestamp is not supported for magic "</span> + magic);</span><br><span class="line">        &#125;</span><br><span class="line">        ...</span><br><span class="line">        <span class="keyword">this</span>.appendStream = <span class="keyword">new</span> DataOutputStream(compressionType.wrapForOutput(<span class="keyword">this</span>.bufferStream, magic));</span><br><span class="line">        ...</span><br><span class="line">    &#125;</span><br><span class="line">  </span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">close</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        ...</span><br><span class="line">        <span class="keyword">if</span> (numRecords == <span class="number">0L</span>) &#123;</span><br><span class="line">            buffer().position(initialPosition);</span><br><span class="line">            builtRecords = MemoryRecords.EMPTY;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="keyword">if</span> (magic &gt; RecordBatch.MAGIC_VALUE_V1)</span><br><span class="line">                <span class="keyword">this</span>.actualCompressionRatio = (<span class="keyword">float</span>) writeDefaultBatchHeader() / <span class="keyword">this</span>.uncompressedRecordsSizeInBytes;</span><br><span class="line">            <span class="keyword">else</span> <span class="keyword">if</span> (compressionType != CompressionType.NONE)</span><br><span class="line">                <span class="keyword">this</span>.actualCompressionRatio = (<span class="keyword">float</span>) writeLegacyCompressedWrapperHeader() / <span class="keyword">this</span>.uncompressedRecordsSizeInBytes;</span><br><span class="line"></span><br><span class="line">            ByteBuffer buffer = buffer().duplicate();</span><br><span class="line">            buffer.flip();</span><br><span class="line">            buffer.position(initialPosition);</span><br><span class="line">            builtRecords = MemoryRecords.readableRecords(buffer.slice());</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    ...</span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">int</span> <span class="title">writeDefaultBatchHeader</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        ...</span><br><span class="line">        DefaultRecordBatch.writeHeader(buffer, baseOffset, offsetDelta, size, magic, compressionType, timestampType,</span><br><span class="line">                baseTimestamp, maxTimestamp, producerId, producerEpoch, baseSequence, isTransactional, isControlBatch,</span><br><span class="line">                hasDeleteHorizonMs(), partitionLeaderEpoch, numRecords);</span><br><span class="line"></span><br><span class="line">        buffer.position(pos);</span><br><span class="line">        <span class="keyword">return</span> writtenCompressed;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">int</span> <span class="title">writeLegacyCompressedWrapperHeader</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        ...</span><br><span class="line">        <span class="keyword">int</span> wrapperSize = pos - initialPosition - Records.LOG_OVERHEAD;</span><br><span class="line">        <span class="keyword">int</span> writtenCompressed = wrapperSize - LegacyRecord.recordOverhead(magic);</span><br><span class="line">        AbstractLegacyRecordBatch.writeHeader(buffer, lastOffset, wrapperSize);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">long</span> timestamp = timestampType == TimestampType.LOG_APPEND_TIME ? logAppendTime : maxTimestamp;</span><br><span class="line">        LegacyRecord.writeCompressedRecordHeader(buffer, magic, wrapperSize, timestamp, compressionType, timestampType);</span><br><span class="line"></span><br><span class="line">        buffer.position(pos);</span><br><span class="line">        <span class="keyword">return</span> writtenCompressed;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>可以看到，<code>appendStream</code> 是用于追加消息到内存 buffer 的，直接采用的 <code>compressionType</code> 的压缩逻辑来构建写入流的，如果此处 <code>compressionType</code>属于非 <code>none</code> 的有效压缩类型，则会产生压缩。此外，从上面 <code>magic</code> 的判断逻辑可知，消息的时间戳类型是从大版本 <code>V1</code> 开始支持的；而事务消息、控制消息、Zstd 压缩和 <code>deleteHorizonMs</code>都是从 <code>V2</code> 才开始支持的。这里的 <code>V1</code>、<code>V2</code> 对应消息格式的版本，其中 <code>V1</code> 是从 0.10.0 版本开始引入的，在此之前都是 <code>V0</code> 版本，而 <code>V2</code> 则是从 0.11.0 版本开始引入，直到现在的最新版依然是 <code>V2</code>。</p>
+<p>从 <code>close()</code> 方法可以看出，<code>MemoryRecordsBuilder</code> 在构建 <code>memoryRecords</code> 时，会根据消息格式的版本高低，写入不同的 Header。对于新版消息，在 <code>writeDefaultBatchHeader</code> 方法中直接调用 <code>DefaultRecordBatch.writeHeader(...)</code>写入新版消息特定的 Header；而对于老版消息，则是在 <code>writeLegacyCompressedWrapperHeader</code>方法中调用 <code>AbstractLegacyRecordBatch.writeHeader</code>  和 <code>LegacyRecord.writeCompressedRecordHeader</code> 写入老版消息的 Header。虽然 Header 的格式各不相同，但我们在两种 Header 中都可以看到 <code>compressionType</code> 的身影，以此可见，Kafka 是允许多种版本的消息共存的，以及压缩与非压缩消息的共存，因为这些信息是保存在 <code>recordBatch</code> 上的，是批量消息级别。</p>
+<h2 id="DefaultRecordBatch"><a href="#DefaultRecordBatch" class="headerlink" title="DefaultRecordBatch"></a>DefaultRecordBatch</h2><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">DefaultRecordBatch</span> <span class="keyword">extends</span> <span class="title">AbstractRecordBatch</span> <span class="keyword">implements</span> <span class="title">MutableRecordBatch</span> </span>&#123;</span><br><span class="line">    ...</span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> Iterator&lt;Record&gt; <span class="title">iterator</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (count() == <span class="number">0</span>)</span><br><span class="line">            <span class="keyword">return</span> Collections.emptyIterator();</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (!isCompressed())</span><br><span class="line">            <span class="keyword">return</span> uncompressedIterator();</span><br><span class="line"></span><br><span class="line">        <span class="comment">// for a normal iterator, we cannot ensure that the underlying compression stream is closed,</span></span><br><span class="line">        <span class="comment">// so we decompress the full record set here. Use cases which call for a lower memory footprint</span></span><br><span class="line">        <span class="comment">// can use `streamingIterator` at the cost of additional complexity</span></span><br><span class="line">        <span class="keyword">try</span> (CloseableIterator&lt;Record&gt; iterator = compressedIterator(BufferSupplier.NO_CACHING, <span class="keyword">false</span>)) &#123;</span><br><span class="line">            List&lt;Record&gt; records = <span class="keyword">new</span> ArrayList&lt;&gt;(count());</span><br><span class="line">            <span class="keyword">while</span> (iterator.hasNext())</span><br><span class="line">                records.add(iterator.next());</span><br><span class="line">            <span class="keyword">return</span> records.iterator();</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>RecordBatch</code> 是表示批量消息的接口，对于老版格式的消息（版本 <code>V0</code> 和 <code>V1</code>），如果没有压缩，只会包含单条消息，否则可以包含多条；而新版格式消息（版本 <code>V2</code> 及以上）无论是否压缩，都是通常包含多条消息。且该接口中有一个 <code>compressionType()</code>方法来标识该 batch 的压缩类型，它会作为读消息时解压的判断依据。而上面的 <code>DefaultRecordBatch</code> 则是该接口的针对新版本格式消息的默认实现，它也实现了 <code>Iterable&lt;Record&gt;</code> 接口，因而 <code>iterator()</code> 是访问批量消息的核心逻辑，当 <code>compressionType()</code> 返回 <code>none</code> 时，表示不压缩，直接返回非压缩迭代器，此处跳过，当有压缩时，走的是压缩迭代器，具体实现如下，</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> DataInputStream <span class="title">recordInputStream</span><span class="params">(BufferSupplier bufferSupplier)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">final</span> ByteBuffer buffer = <span class="keyword">this</span>.buffer.duplicate();</span><br><span class="line">    buffer.position(RECORDS_OFFSET);</span><br><span class="line">    <span class="keyword">return</span> <span class="keyword">new</span> DataInputStream(compressionType().wrapForInput(buffer, magic(), bufferSupplier));</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">private</span> CloseableIterator&lt;Record&gt; <span class="title">compressedIterator</span><span class="params">(BufferSupplier bufferSupplier, <span class="keyword">boolean</span> skipKeyValue)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">final</span> DataInputStream inputStream = recordInputStream(bufferSupplier);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (skipKeyValue) &#123;</span><br><span class="line">        <span class="comment">// this buffer is used to skip length delimited fields like key, value, headers</span></span><br><span class="line">        <span class="keyword">byte</span>[] skipArray = <span class="keyword">new</span> <span class="keyword">byte</span>[MAX_SKIP_BUFFER_SIZE];</span><br><span class="line">      </span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">new</span> StreamRecordIterator(inputStream) &#123;</span><br><span class="line">            ...</span><br><span class="line">        &#125;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        ...  </span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>我们可以看到，<code>compressedIterator()</code> 在构造 Stream 迭代器之前，调用了 <code>recordInputStream(...)</code>，该方法中通过 <code>compressionType</code> 的解压逻辑对原数据进行了解压。</p>
+<h2 id="AbstractLegacyRecordBatch"><a href="#AbstractLegacyRecordBatch" class="headerlink" title="AbstractLegacyRecordBatch"></a>AbstractLegacyRecordBatch</h2><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">AbstractLegacyRecordBatch</span> <span class="keyword">extends</span> <span class="title">AbstractRecordBatch</span> <span class="keyword">implements</span> <span class="title">Record</span> </span>&#123;</span><br><span class="line">    ...</span><br><span class="line">    <span class="function">CloseableIterator&lt;Record&gt; <span class="title">iterator</span><span class="params">(BufferSupplier bufferSupplier)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (isCompressed())</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">new</span> DeepRecordsIterator(<span class="keyword">this</span>, <span class="keyword">false</span>, Integer.MAX_VALUE, bufferSupplier);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">new</span> CloseableIterator&lt;Record&gt;() &#123;</span><br><span class="line">            <span class="keyword">private</span> <span class="keyword">boolean</span> hasNext = <span class="keyword">true</span>;</span><br><span class="line"></span><br><span class="line">            <span class="meta">@Override</span></span><br><span class="line">            <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">close</span><span class="params">()</span> </span>&#123;&#125;</span><br><span class="line"></span><br><span class="line">            <span class="meta">@Override</span></span><br><span class="line">            <span class="function"><span class="keyword">public</span> <span class="keyword">boolean</span> <span class="title">hasNext</span><span class="params">()</span> </span>&#123;</span><br><span class="line">                <span class="keyword">return</span> hasNext;</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="meta">@Override</span></span><br><span class="line">            <span class="function"><span class="keyword">public</span> Record <span class="title">next</span><span class="params">()</span> </span>&#123;</span><br><span class="line">                <span class="keyword">if</span> (!hasNext)</span><br><span class="line">                    <span class="keyword">throw</span> <span class="keyword">new</span> NoSuchElementException();</span><br><span class="line">                hasNext = <span class="keyword">false</span>;</span><br><span class="line">                <span class="keyword">return</span> AbstractLegacyRecordBatch.<span class="keyword">this</span>;</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="meta">@Override</span></span><br><span class="line">            <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">remove</span><span class="params">()</span> </span>&#123;</span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> UnsupportedOperationException();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;;</span><br><span class="line">    &#125;</span><br><span class="line">    ...</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="class"><span class="keyword">class</span> <span class="title">DeepRecordsIterator</span> <span class="keyword">extends</span> <span class="title">AbstractIterator</span>&lt;<span class="title">Record</span>&gt; <span class="keyword">implements</span> <span class="title">CloseableIterator</span>&lt;<span class="title">Record</span>&gt; </span>&#123;</span><br><span class="line">        <span class="function"><span class="keyword">private</span> <span class="title">DeepRecordsIterator</span><span class="params">(AbstractLegacyRecordBatch wrapperEntry,</span></span></span><br><span class="line"><span class="function"><span class="params">                                    <span class="keyword">boolean</span> ensureMatchingMagic,</span></span></span><br><span class="line"><span class="function"><span class="params">                                    <span class="keyword">int</span> maxMessageSize,</span></span></span><br><span class="line"><span class="function"><span class="params">                                    BufferSupplier bufferSupplier)</span> </span>&#123;</span><br><span class="line">            LegacyRecord wrapperRecord = wrapperEntry.outerRecord();</span><br><span class="line">            <span class="keyword">this</span>.wrapperMagic = wrapperRecord.magic();</span><br><span class="line">            <span class="keyword">if</span> (wrapperMagic != RecordBatch.MAGIC_VALUE_V0 &amp;&amp; wrapperMagic != RecordBatch.MAGIC_VALUE_V1)</span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> InvalidRecordException(<span class="string">"Invalid wrapper magic found in legacy deep record iterator "</span> + wrapperMagic);</span><br><span class="line"></span><br><span class="line">            CompressionType compressionType = wrapperRecord.compressionType();</span><br><span class="line">            <span class="keyword">if</span> (compressionType == CompressionType.ZSTD)</span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> InvalidRecordException(<span class="string">"Invalid wrapper compressionType found in legacy deep record iterator "</span> + wrapperMagic);</span><br><span class="line">            ByteBuffer wrapperValue = wrapperRecord.value();</span><br><span class="line">            <span class="keyword">if</span> (wrapperValue == <span class="keyword">null</span>)</span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> InvalidRecordException(<span class="string">"Found invalid compressed record set with null value (magic = "</span> +</span><br><span class="line">                        wrapperMagic + <span class="string">")"</span>);</span><br><span class="line"></span><br><span class="line">            InputStream stream = compressionType.wrapForInput(wrapperValue, wrapperRecord.magic(), bufferSupplier);</span><br><span class="line">            ...</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>AbstractLegacyRecordBatch</code> 跟前面的 <code>DefaultRecordBatch</code> 大同小异，同样也是 <code>iterator()</code> 入口，当开启了压缩时，返回压缩迭代器 <code>DeepRecordsIterator</code>，只是名字不同而已，迭代器内部依然是直接通过 <code>compressionType</code> 的解压逻辑对数据流进行解压。</p>
+
+      
+    </div>
+
+    <div>
+      
+        
+<div id="wechat_subscriber" style="display: block; padding: 10px 0; margin: 20px auto; width: 100%; text-align: center">
+    <img id="wechat_subscriber_qcode" src="/images/sherlockyb.jpg" alt="杨冰 wechat" style="width: 200px; max-width: 100%;">
+    <div>Javaer，关注机器学习、NLP方向，定期分享技术干货~</div>
+</div>
+
+
+      
+    </div>
+
+    <div>
+      
+        
+  <div style="padding: 10px 0; margin: 20px auto; width: 90%; text-align: center;">
+    <div>请我吃糖？</div>
+    <button id="rewardButton" disable="enable" onclick="var qr = document.getElementById('QR'); if (qr.style.display === 'none') {qr.style.display='block';} else {qr.style.display='none'}">
+      <span>赏</span>
+    </button>
+    <div id="QR" style="display: none;">
+      
+        <div id="wechat" style="display: inline-block">
+          <img id="wechat_qr" src="/images/wechatpay.jpg" alt="杨冰 WeChat Pay">
+          <p>微信打赏</p>
+        </div>
+      
+      
+    </div>
+  </div>
+
+
+      
+    </div>
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/Kafka系列/" rel="tag"># Kafka系列</a>
+          
+            <a href="/tags/消息队列/" rel="tag"># 消息队列</a>
+          
+            <a href="/tags/源码/" rel="tag"># 源码</a>
+          
+        </div>
+      
+      
+      
+        <ul class="post-copyright">
+          <li class="post-copyright-author">
+            <strong>本文作者：</strong>sherlockyb
+          </li>
+          <li class="post-copyright-link">
+            <strong>本文链接：</strong><a href="/2022/04/30/compression-mechanism-of-the-Kafka-message/" title="Kafka消息的压缩机制">https://www.yangbing.fun/2022/04/30/compression-mechanism-of-the-Kafka-message/</a>
+          </li>
+          <li class="post-copyright-license">
+            <strong>许可协议： </strong>
+            除特殊声明外，本站博文均采用 <a href="http://creativecommons.org/licenses/by-nc-sa/3.0/cn/" rel="external nofollow" target="_blank">CC BY-NC-SA 3.0 CN</a> 许可协议，转载请注明出处！
+          </li>
+</ul>
+
+
+
+      
+        
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              上一篇
+              <a href="/2022/03/24/hexo-blog-website-page-blank-or-404/" rel="next" title="hexo博客网站主页空白或404">
+                <i class="fa fa-chevron-left"></i> hexo博客网站主页空白或404
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              下一篇
+              <a href="/2022/05/31/Some-thoughts-on-work-recently/" rel="prev" title="最近关于工作的几点思考">
+                最近关于工作的几点思考 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+          
+          </div>
+          
+
+
+          
+  <div class="comments" id="comments">
+    
+      <div id="utteranc-container"></div>
+    
+  </div>
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+          <img class="site-author-image" itemprop="image" src="/images/me.jpg" alt="杨冰">
+          <p class="site-author-name" itemprop="name">杨冰</p>
+           
+              <p class="site-description motion-element" itemprop="description"></p>
+           
+        </div>
+        <nav class="site-state motion-element">
+        
+          
+            <div class="site-state-item site-state-posts">
+              <a href="/archives">
+                <span class="site-state-item-count">13</span>
+                <span class="site-state-item-name">日志</span>
+              </a>
+            </div>
+          
+
+          
+            <div class="site-state-item site-state-categories">
+              <a href="/categories">
+                <span class="site-state-item-count">10</span>
+                <span class="site-state-item-name">分类</span>
+              </a>
+            </div>
+          
+
+          
+            <div class="site-state-item site-state-tags">
+              <a href="/tags">
+                <span class="site-state-item-count">24</span>
+                <span class="site-state-item-name">标签</span>
+              </a>
+            </div>
+          
+
+        </nav>
+
+        
+
+        <div class="links-of-author motion-element">
+          
+            
+              <span class="links-of-author-item">
+                <a href="https://github.com/sherlockyb" target="_blank" title="GitHub">
+                  
+                    <i class="fa fa-fw fa-github"></i>
+                  
+                  GitHub
+                </a>
+              </span>
+            
+              <span class="links-of-author-item">
+                <a href="mailto:yb_cswhu@aliyun.com" target="_blank" title="E-Mail">
+                  
+                    <i class="fa fa-fw fa-envelope"></i>
+                  
+                  E-Mail
+                </a>
+              </span>
+            
+              <span class="links-of-author-item">
+                <a href="https://www.jianshu.com/u/39bd7cd3d268" target="_blank" title="简书">
+                  
+                    <i class="fa fa-fw fa-book"></i>
+                  
+                  简书
+                </a>
+              </span>
+            
+              <span class="links-of-author-item">
+                <a href="https://www.zhihu.com/people/sherlockyb/activities" target="_blank" title="知乎">
+                  
+                    <i class="fa fa-fw fa-snapchat"></i>
+                  
+                  知乎
+                </a>
+              </span>
+            
+          
+        </div>
+
+        
+        
+
+        
+        
+          <div class="links-of-blogroll motion-element links-of-blogroll-inline">
+            <div class="links-of-blogroll-title">
+              <i class="fa  fa-fw fa-globe"></i>
+              友情链接
+            </div>
+            <ul class="links-of-blogroll-list">
+              
+                <li class="links-of-blogroll-item">
+                  <a href="http://zhenchao.org/" title="超哥" target="_blank">超哥</a>
+                </li>
+              
+            </ul>
+          </div>
+        
+
+        
+
+
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Kafka支持的消息压缩类型"><span class="nav-number">1.</span> <span class="nav-text">Kafka支持的消息压缩类型</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#什么是-Kafka-的消息压缩"><span class="nav-number">1.1.</span> <span class="nav-text">什么是 Kafka 的消息压缩</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#消息压缩类型"><span class="nav-number">1.2.</span> <span class="nav-text">消息压缩类型</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#何时需要压缩"><span class="nav-number">2.</span> <span class="nav-text">何时需要压缩</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#如何开启压缩"><span class="nav-number">3.</span> <span class="nav-text">如何开启压缩</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#在-Broker-端开启压缩"><span class="nav-number">3.1.</span> <span class="nav-text">在 Broker 端开启压缩</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#compression-type-属性"><span class="nav-number">3.1.1.</span> <span class="nav-text">compression.type 属性</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#broker-和-topic-两个级别"><span class="nav-number">3.1.2.</span> <span class="nav-text">broker 和 topic 两个级别</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#broker-级别"><span class="nav-number">3.1.2.1.</span> <span class="nav-text">broker 级别</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#topic-级别"><span class="nav-number">3.1.2.2.</span> <span class="nav-text">topic 级别</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#在-Producer-端压缩"><span class="nav-number">3.2.</span> <span class="nav-text">在 Producer 端压缩</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#compression-type-属性-1"><span class="nav-number">3.2.1.</span> <span class="nav-text">compression.type 属性</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#开启压缩的方式"><span class="nav-number">3.2.2.</span> <span class="nav-text">开启压缩的方式</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#压缩和解压的位置"><span class="nav-number">4.</span> <span class="nav-text">压缩和解压的位置</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#何处会压缩"><span class="nav-number">4.1.</span> <span class="nav-text">何处会压缩</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#producer-端"><span class="nav-number">4.1.1.</span> <span class="nav-text">producer 端</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#broker-端"><span class="nav-number">4.1.2.</span> <span class="nav-text">broker 端</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#何处会解压"><span class="nav-number">4.2.</span> <span class="nav-text">何处会解压</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#consumer-端"><span class="nav-number">4.2.1.</span> <span class="nav-text">consumer 端</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#broker-端-1"><span class="nav-number">4.2.2.</span> <span class="nav-text">broker 端</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#压缩和解压原理"><span class="nav-number">5.</span> <span class="nav-text">压缩和解压原理</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#CompressionType"><span class="nav-number">5.1.</span> <span class="nav-text">CompressionType</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#CompressionCodec"><span class="nav-number">5.1.1.</span> <span class="nav-text">CompressionCodec</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#CompressionType-源码"><span class="nav-number">5.1.2.</span> <span class="nav-text">CompressionType 源码</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#MemoryRecordsBuilder"><span class="nav-number">5.2.</span> <span class="nav-text">MemoryRecordsBuilder</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#DefaultRecordBatch"><span class="nav-number">5.3.</span> <span class="nav-text">DefaultRecordBatch</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#AbstractLegacyRecordBatch"><span class="nav-number">5.4.</span> <span class="nav-text">AbstractLegacyRecordBatch</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">
+  
+  &copy;  2017 - 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">杨冰</span>
+</div>
+
+
+<div class="powered-by">
+  由 <a class="theme-link" href="https://hexo.io">Hexo</a> 强力驱动
+</div>
+
+<div class="theme-info">
+  主题 -
+  <a class="theme-link" href="https://github.com/iissnan/hexo-theme-next">
+    NexT.Pisces
+  </a>
+</div>
+
+
+        
+
+<div class="busuanzi-count">
+
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+  
+    <span class="site-uv">你是第<span class="busuanzi-value" id="busuanzi_value_site_uv"></span>个访客哦</span>
+  
+
+  
+    <span class="site-pv">总访问<span class="busuanzi-value" id="busuanzi_value_site_pv"></span>次</span>
+  
+  
+</div>
+
+
+
+        
+      </div>
+    </footer>
+
+    <div class="back-to-top">
+      <i class="fa fa-arrow-up"></i>
+    </div>
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+  
+  <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+
+  
+  <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+
+  
+  <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.0"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.0"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.0"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.0"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.0"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.0"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.0"></script>
+
+
+
+  
+
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+  <script type="text/javascript">
+    var div = document.createElement('div');
+    div.id = 'utteranc-comments';
+
+    var styleEle = document.createElement('style');
+    styleEle.innerHTML = '.utterances-frame{min-width: 102%; left: -5px}';
+    div.appendChild(styleEle);
+
+    var scriptEle = document.createElement('script');
+    scriptEle.src = 'https://utteranc.es/client.js';
+    scriptEle.setAttribute('repo', 'sherlockyb/blog-comments');
+    scriptEle.setAttribute('issue-term', 'title');
+    scriptEle.setAttribute('theme', 'github-dark-orange');
+    scriptEle.setAttribute('label', 'question');
+    scriptEle.setAttribute('async', !0);
+    div.appendChild(scriptEle);
+
+    var container = document.getElementById('utteranc-container');
+    if (container) {
+      container.appendChild(div);
+    }
+  </script>
+
+
+  
+  
+  <script type="text/javascript">
+    // Popup Window;
+    var isfetched = false;
+    // Search DB path;
+    var search_path = "search.xml";
+    if (search_path.length == 0) {
+      search_path = "search.xml";
+    }
+    var path = "/" + search_path;
+    // monitor main search box;
+
+    function proceedsearch() {
+      $("body").append('<div class="popoverlay">').css('overflow', 'hidden');
+      $('.popup').toggle();
+    }
+    // search function;
+    var searchFunc = function(path, search_id, content_id) {
+      'use strict';
+      $.ajax({
+        url: path,
+        dataType: "xml",
+        async: true,
+        success: function( xmlResponse ) {
+          // get the contents from search data
+          isfetched = true;
+          $('.popup').detach().appendTo('.header-inner');
+          var datas = $( "entry", xmlResponse ).map(function() {
+            return {
+              title: $( "title", this ).text(),
+              content: $("content",this).text(),
+              url: $( "url" , this).text()
+            };
+          }).get();
+          var $input = document.getElementById(search_id);
+          var $resultContent = document.getElementById(content_id);
+          $input.addEventListener('input', function(){
+            var matchcounts = 0;
+            var str='<ul class=\"search-result-list\">';
+            var keywords = this.value.trim().toLowerCase().split(/[\s\-]+/);
+            $resultContent.innerHTML = "";
+            if (this.value.trim().length > 1) {
+              // perform local searching
+              datas.forEach(function(data) {
+                var isMatch = false;
+                var content_index = [];
+                var data_title = data.title.trim().toLowerCase();
+                var data_content = data.content.trim().replace(/<[^>]+>/g,"").toLowerCase();
+                var data_url = decodeURIComponent(data.url);
+                var index_title = -1;
+                var index_content = -1;
+                var first_occur = -1;
+                // only match artiles with not empty titles and contents
+                if(data_title != '') {
+                  keywords.forEach(function(keyword, i) {
+                    index_title = data_title.indexOf(keyword);
+                    index_content = data_content.indexOf(keyword);
+                    if( index_title >= 0 || index_content >= 0 ){
+                      isMatch = true;
+                      if (i == 0) {
+                        first_occur = index_content;
+                      }
+                    }
+
+                  });
+                }
+                // show search results
+                if (isMatch) {
+                  matchcounts += 1;
+                  str += "<li><a href='"+ data_url +"' class='search-result-title'>"+ data_title +"</a>";
+                  var content = data.content.trim().replace(/<[^>]+>/g,"");
+                  if (first_occur >= 0) {
+                    // cut out 100 characters
+                    var start = first_occur - 20;
+                    var end = first_occur + 80;
+                    if(start < 0){
+                      start = 0;
+                    }
+                    if(start == 0){
+                      end = 50;
+                    }
+                    if(end > content.length){
+                      end = content.length;
+                    }
+                    var match_content = content.substring(start, end);
+                    // highlight all keywords
+                    keywords.forEach(function(keyword){
+                      var regS = new RegExp(keyword, "gi");
+                      match_content = match_content.replace(regS, "<b class=\"search-keyword\">"+keyword+"</b>");
+                    });
+
+                    str += "<p class=\"search-result\">" + match_content +"...</p>"
+                  }
+                  str += "</li>";
+                }
+              })};
+            str += "</ul>";
+            if (matchcounts == 0) { str = '<div id="no-result"><i class="fa fa-frown-o fa-5x" /></div>' }
+            if (keywords == "") { str = '<div id="no-result"><i class="fa fa-search fa-5x" /></div>' }
+            $resultContent.innerHTML = str;
+          });
+          proceedsearch();
+        }
+      });}
+
+    // handle and trigger popup window;
+    $('.popup-trigger').click(function(e) {
+      e.stopPropagation();
+      if (isfetched == false) {
+        searchFunc(path, 'local-search-input', 'local-search-result');
+      } else {
+        proceedsearch();
+      };
+    });
+
+    $('.popup-btn-close').click(function(e){
+      $('.popup').hide();
+      $(".popoverlay").remove();
+      $('body').css('overflow', '');
+    });
+    $('.popup').click(function(e){
+      e.stopPropagation();
+    });
+  </script>
+
+
+  
+
+  
+
+  
+<script>
+(function(){
+    var bp = document.createElement('script');
+    var curProtocol = window.location.protocol.split(':')[0];
+    if (curProtocol === 'https') {
+        bp.src = 'https://zz.bdstatic.com/linksubmit/push.js';        
+    }
+    else {
+        bp.src = 'http://push.zhanzhang.baidu.com/push.js';
+    }
+    var s = document.getElementsByTagName("script")[0];
+    s.parentNode.insertBefore(bp, s);
+})();
+</script>
+
+
+  
+
+
+</body>
+</html>

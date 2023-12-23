@@ -1,0 +1,1127 @@
+<!doctype html>
+
+
+
+  
+
+
+<html class="theme-next pisces use-motion" lang="zh-Hans">
+<head><meta name="generator" content="Hexo 3.9.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+  
+  
+  
+  
+
+  
+    
+    
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    
+    
+    <link href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&subset=latin,latin-ext" rel="stylesheet" type="text/css">
+  
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.0" rel="stylesheet" type="text/css">
+
+
+  <meta name="keywords" content="Spark,Elasticsearch,">
+
+
+
+
+
+
+
+
+  <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico?v=5.1.0">
+
+
+
+
+
+
+<meta name="description" content="最近要在 Spark job 中通过 Spark SQL 的方式读取 Elasticsearch 数据，踩了一些坑，总结于此。">
+<meta name="keywords" content="Spark,Elasticsearch">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Spark读取elasticsearch数据指南">
+<meta property="og:url" content="https://www.yangbing.fun/2022/06/03/Spark-reading-elasticsearch-guide/index.html">
+<meta property="og:site_name" content="小冰的个人博客">
+<meta property="og:description" content="最近要在 Spark job 中通过 Spark SQL 的方式读取 Elasticsearch 数据，踩了一些坑，总结于此。">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:updated_time" content="2023-12-23T01:28:33.003Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Spark读取elasticsearch数据指南">
+<meta name="twitter:description" content="最近要在 Spark job 中通过 Spark SQL 的方式读取 Elasticsearch 数据，踩了一些坑，总结于此。">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Pisces',
+    sidebar: {"position":"left","display":"post"},
+    fancybox: true,
+    motion: true,
+    duoshuo: {
+      userId: 'undefined',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://www.yangbing.fun/2022/06/03/Spark-reading-elasticsearch-guide/">
+
+
+
+
+
+  <title> Spark读取elasticsearch数据指南 | 小冰的个人博客 </title>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+
+
+
+
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+            (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+          m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-109259143-1', 'auto');
+  ga('send', 'pageview');
+</script>
+
+
+  <script type="text/javascript">
+    var _hmt = _hmt || [];
+    (function() {
+      var hm = document.createElement("script");
+      hm.src = "https://hm.baidu.com/hm.js?59fe19f57bfa52fb1144830fa4d7a771";
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(hm, s);
+    })();
+  </script>
+
+
+
+
+
+
+
+
+
+
+  
+  
+    
+  
+
+  <div class="container one-collumn sidebar-position-left page-post-detail ">
+    <div class="headband"></div>
+    
+    <a href="https://github.com/sherlockyb" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewbox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"/><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"/><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"/></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-meta ">
+  
+
+  <div class="custom-logo-site-title">
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <span class="site-title">小冰的个人博客</span>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+    
+      <h1 class="site-subtitle" itemprop="description">行万里路，读万卷书</h1>
+    
+</div>
+
+<div class="site-nav-toggle">
+  <button>
+    <span class="btn-bar"></span>
+    <span class="btn-bar"></span>
+    <span class="btn-bar"></span>
+  </button>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            分类
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            归档
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            标签
+          </a>
+        </li>
+      
+
+      
+        <li class="menu-item menu-item-search">
+          
+            <a href="javascript:;" class="popup-trigger">
+          
+            
+              <i class="menu-item-icon fa fa-search fa-fw"></i> <br>
+            
+            搜索
+          </a>
+        </li>
+      
+    </ul>
+  
+
+  
+    <div class="site-search">
+      
+  <div class="popup">
+ <span class="search-icon fa fa-search"></span>
+ <input type="text" id="local-search-input">
+ <div id="local-search-result"></div>
+ <span class="popup-btn-close">close</span>
+</div>
+
+
+    </div>
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal " itemscope itemtype="http://schema.org/Article">
+  <link itemprop="mainEntityOfPage" href="https://www.yangbing.fun/2022/06/03/Spark-reading-elasticsearch-guide/">
+
+  <span style="display:none" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <meta itemprop="name" content="杨冰">
+    <meta itemprop="description" content>
+    <meta itemprop="image" content="/images/me.jpg">
+  </span>
+
+  <span style="display:none" itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+    <meta itemprop="name" content="小冰的个人博客">
+    <span style="display:none" itemprop="logo" itemscope itemtype="http://schema.org/ImageObject">
+      <img style="display:none;" itemprop="url image" alt="小冰的个人博客" src>
+    </span>
+  </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">
+            
+            
+              
+                Spark读取elasticsearch数据指南
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2022-06-03T20:00:00+08:00">
+                2022-06-03
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Spark/" itemprop="url" rel="index">
+                    <span itemprop="name">Spark</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+            <span class="post-meta-divider">|</span>
+            <span class="page-pv"><i class="fa fa-eye"></i> 热度
+            <span class="busuanzi-value" id="busuanzi_value_page_pv"></span>℃
+            </span>
+          
+
+          
+            <div class="post-wordcount">
+              
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-file-word-o"></i>
+                </span>
+                  
+                    <span class="post-meta-item-text">字数</span>
+                  
+                    <span title="字数" }}">
+                      2.7k
+                    </span>
+              
+
+              
+                <span class="post-meta-divider">|</span>
+              
+
+              
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-clock-o"></i>
+                </span>
+                  
+                    <span class="post-meta-item-text">读完约</span>
+                  
+                    <span title="读完约" }}">
+                      14 分钟
+                    </span>
+              
+            </div>
+          
+
+          
+
+        </div>
+      </header>
+    
+
+
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <p>最近要在 Spark job 中通过 Spark SQL 的方式读取 Elasticsearch 数据，踩了一些坑，总结于此。</p>
+<a id="more"></a>
+
+<h1 id="环境说明"><a href="#环境说明" class="headerlink" title="环境说明"></a>环境说明</h1><ul>
+<li><p>Spark job 的编写语言为 Scala，scala-library 的版本为 2.11.8。</p>
+</li>
+<li><p>Spark 相关依赖包的版本为 2.3.2，如 spark-core、spark-sql。</p>
+</li>
+<li><p>Elasticsearch 数据</p>
+<p><strong>schema</strong></p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">  <span class="attr">"settings"</span>: &#123;</span><br><span class="line">    <span class="attr">"number_of_replicas"</span>: <span class="number">1</span></span><br><span class="line">  &#125;,</span><br><span class="line">  <span class="attr">"mappings"</span>: &#123;</span><br><span class="line">    <span class="attr">"label"</span>: &#123;</span><br><span class="line">      <span class="attr">"properties"</span>: &#123;</span><br><span class="line">        <span class="attr">"docId"</span>: &#123;</span><br><span class="line">          <span class="attr">"type"</span>: <span class="string">"keyword"</span></span><br><span class="line">        &#125;,</span><br><span class="line">        <span class="attr">"labels"</span>: &#123;</span><br><span class="line">          <span class="attr">"type"</span>: <span class="string">"nested"</span>,</span><br><span class="line">          <span class="attr">"properties"</span>: &#123;</span><br><span class="line">            <span class="attr">"id"</span>: &#123;</span><br><span class="line">              <span class="attr">"type"</span>: <span class="string">"long"</span></span><br><span class="line">            &#125;,</span><br><span class="line">            <span class="attr">"label"</span>: &#123;</span><br><span class="line">              <span class="attr">"type"</span>: <span class="string">"keyword"</span></span><br><span class="line">            &#125;</span><br><span class="line">          &#125;</span><br><span class="line">        &#125;,</span><br><span class="line">        <span class="attr">"itemId"</span>: &#123;</span><br><span class="line">          <span class="attr">"type"</span>: <span class="string">"long"</span></span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>sample data</strong></p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">  <span class="attr">"took"</span> : <span class="number">141</span>,</span><br><span class="line">  <span class="attr">"timed_out"</span> : <span class="literal">false</span>,</span><br><span class="line">  <span class="attr">"_shards"</span> : &#123;</span><br><span class="line">    <span class="attr">"total"</span> : <span class="number">5</span>,</span><br><span class="line">    <span class="attr">"successful"</span> : <span class="number">5</span>,</span><br><span class="line">    <span class="attr">"skipped"</span> : <span class="number">0</span>,</span><br><span class="line">    <span class="attr">"failed"</span> : <span class="number">0</span></span><br><span class="line">  &#125;,</span><br><span class="line">  <span class="attr">"hits"</span> : &#123;</span><br><span class="line">    <span class="attr">"total"</span> : <span class="number">17370929</span>,</span><br><span class="line">    <span class="attr">"max_score"</span> : <span class="number">1.0</span>,</span><br><span class="line">    <span class="attr">"hits"</span> : [</span><br><span class="line">      &#123;</span><br><span class="line">        <span class="attr">"_index"</span> : <span class="string">"aen-label-v1"</span>,</span><br><span class="line">        <span class="attr">"_type"</span> : <span class="string">"label"</span>,</span><br><span class="line">        <span class="attr">"_id"</span> : <span class="string">"123_ITEM"</span>,</span><br><span class="line">        <span class="attr">"_score"</span> : <span class="number">1.0</span>,</span><br><span class="line">        <span class="attr">"_source"</span> : &#123;</span><br><span class="line">          <span class="attr">"docId"</span> : <span class="string">"123_ITEM"</span>,</span><br><span class="line">          <span class="attr">"labels"</span> : [</span><br><span class="line">            &#123;</span><br><span class="line">              <span class="attr">"id"</span> : <span class="number">7378</span>,</span><br><span class="line">              <span class="attr">"label"</span> : <span class="string">"1kg"</span></span><br><span class="line">            &#125;</span><br><span class="line">          ],</span><br><span class="line">          <span class="attr">"itemId"</span> : <span class="number">123</span></span><br><span class="line">        &#125;</span><br><span class="line">      &#125;,</span><br><span class="line">      &#123;</span><br><span class="line">        <span class="attr">"_index"</span> : <span class="string">"aen-label-v1"</span>,</span><br><span class="line">        <span class="attr">"_type"</span> : <span class="string">"label"</span>,</span><br><span class="line">        <span class="attr">"_id"</span> : <span class="string">"456_ITEM"</span>,</span><br><span class="line">        <span class="attr">"_score"</span> : <span class="number">1.0</span>,</span><br><span class="line">        <span class="attr">"_source"</span> : &#123;</span><br><span class="line">          <span class="attr">"docId"</span> : <span class="string">"456_ITEM"</span>,</span><br><span class="line">          <span class="attr">"labels"</span> : [</span><br><span class="line">            &#123;</span><br><span class="line">              <span class="attr">"id"</span> : <span class="number">7378</span>,</span><br><span class="line">              <span class="attr">"label"</span> : <span class="string">"2kg"</span></span><br><span class="line">            &#125;</span><br><span class="line">          ],</span><br><span class="line">          <span class="attr">"itemId"</span> : <span class="number">456</span></span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    ]</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li>
+</ul>
+<h1 id="准备工作"><a href="#准备工作" class="headerlink" title="准备工作"></a>准备工作</h1><p>既然要用 Spark SQL，当然少不了其对应的依赖，</p>
+<figure class="highlight groovy"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">dependencies &#123;</span><br><span class="line">  implementation <span class="string">'org.apache.spark:spark-core_2.11:2.3.2'</span></span><br><span class="line">  implementation <span class="string">'org.apache.spark:spark-sql_2.11:2.3.2'</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>对于 ES 的相关库，如同 <a href="https://www.elastic.co/guide/en/elasticsearch/hadoop/current/spark.html" target="_blank" rel="noopener">官网</a> 所说，要在 Spark 中访问 ES，需要将 <code>elasticsearch-hadoop</code> 依赖包加入到 Spark job 运行的类路径中，具体而言就是添加到 Spark job 工程的依赖中，公司的 nexus 中当前最新的版本为 7.15.0，且目前我们是使用 gradle 管理依赖，故添加依赖的代码如下，</p>
+<figure class="highlight groovy"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">dependencies &#123;</span><br><span class="line">  implementation <span class="string">'org.elasticsearch:elasticsearch-hadoop:7.15.0'</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="本地测试"><a href="#本地测试" class="headerlink" title="本地测试"></a>本地测试</h1><p>对于 Spark，基于资源管理器的不同，可以在两种模式下运行：本地模式和集群模式，可通过 <code>--master</code> 参数来指定资源管理器的方式。本地模式时，不依赖额外的 Spark 集群，Spark 将在同一台机器上运行所有内容，非常方便用于本地测试，对于 Spark SQL，只需要在创建 SparkSession 时采用 local 的模式即可，</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">MyUtils</span> <span class="keyword">extends</span> <span class="title">Serializable</span> </span>&#123;</span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">esHost</span></span>() = <span class="string">s"es.sherlockyb.club"</span></span><br><span class="line">  </span><br><span class="line">  <span class="comment">// local mode</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">getLocalSparkSession</span></span>: <span class="type">SparkSession</span> = <span class="type">SparkSession</span>.builder()</span><br><span class="line">    .master(<span class="string">"local"</span>)</span><br><span class="line">    .getOrCreate()</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// cluster mode</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">getSparkSession</span></span>: <span class="type">SparkSession</span> = <span class="type">SparkSession</span>.builder()</span><br><span class="line">    .enableHiveSupport()</span><br><span class="line">    .config(<span class="string">"spark.sql.broadcastTimeout"</span>, <span class="string">"3600"</span>)</span><br><span class="line">    .getOrCreate()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="测试代码"><a href="#测试代码" class="headerlink" title="测试代码"></a>测试代码</h2><figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">object</span> <span class="title">LocalTest</span> <span class="keyword">extends</span> <span class="title">LazyLogging</span> </span>&#123;</span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">main</span></span>(args: <span class="type">Array</span>[<span class="type">String</span>]): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">new</span> <span class="type">LocalTest</span>().run()</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">LocalTest</span> </span>&#123;</span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">run</span></span>(): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">val</span> myUtils = <span class="keyword">new</span> <span class="type">MyUtils</span></span><br><span class="line">    <span class="keyword">val</span> spark = myUtils.getLocalSparkSession</span><br><span class="line">    <span class="keyword">import</span> spark.implicits._</span><br><span class="line"></span><br><span class="line">    <span class="keyword">var</span> start = <span class="type">System</span>.currentTimeMillis()</span><br><span class="line">    <span class="keyword">val</span> attributeId = <span class="number">7378</span>L</span><br><span class="line">    <span class="keyword">val</span> labelNames = <span class="type">Array</span>(<span class="string">"aen-label-retail"</span>, <span class="string">"aen-label-seller"</span>)</span><br><span class="line">    spark.read</span><br><span class="line">      .format(<span class="string">"es"</span>)</span><br><span class="line">      .option(<span class="string">"es.nodes"</span>, myUtils.esHost())</span><br><span class="line">      .option(<span class="string">"es.port"</span>, <span class="string">"9200"</span>)</span><br><span class="line">      .option(<span class="string">"es.nodes.wan.only"</span>, value = <span class="literal">true</span>)</span><br><span class="line">      .option(<span class="string">"es.resource"</span>, <span class="type">Joiner</span>.on(<span class="string">","</span>).join(java.util.<span class="type">Arrays</span>.asList(labelNames:_*)) + <span class="string">"/label"</span>)</span><br><span class="line">      .option(<span class="string">"es.scroll.size"</span>, <span class="number">2000</span>)</span><br><span class="line">      .load()</span><br><span class="line">      .createOrReplaceTempView(<span class="string">"temp_labels"</span>)</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">val</span> sqlDf = spark.sql(<span class="string">"select itemId, labels from temp_labels where itemId in (123, 456)"</span>)</span><br><span class="line">    <span class="keyword">val</span> newDf = sqlDf</span><br><span class="line">      .map(row =&gt; &#123;</span><br><span class="line">        <span class="keyword">val</span> labels = row.getAs[<span class="type">Seq</span>[<span class="type">Row</span>]](<span class="string">"labels"</span>)</span><br><span class="line">        <span class="keyword">val</span> labelValue = labels.find(p =&gt; p.getAs[<span class="type">Long</span>](<span class="string">"id"</span>) == attributeId).map(p =&gt; p.getAs[<span class="type">String</span>](<span class="string">"label"</span>))</span><br><span class="line"></span><br><span class="line">        (row.getAs[<span class="type">Long</span>](<span class="string">"itemId"</span>), attributeId, labelValue.orNull)</span><br><span class="line">      &#125;)</span><br><span class="line">      .withColumn(<span class="string">"final_result"</span>, lit(<span class="string">"PASS"</span>))</span><br><span class="line">      .toDF(<span class="string">"itemId"</span>, <span class="string">"attributeId"</span>, <span class="string">"label"</span>, <span class="string">"final_result"</span>)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">val</span> finalDf = newDf.toDF(<span class="string">"itemId"</span>, <span class="string">"attributeId"</span>, <span class="string">"label"</span>, <span class="string">"result"</span>)</span><br><span class="line">    finalDf.printSchema()</span><br><span class="line">    finalDf.show()</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">var</span> emptyDf = newDf</span><br><span class="line">      .filter(col(<span class="string">"label"</span>).isNotNull)</span><br><span class="line">      .toDF(<span class="string">"itemId"</span>, <span class="string">"attributeId"</span>, <span class="string">"label"</span>, <span class="string">"result"</span>)</span><br><span class="line">    emptyDf = emptyDf.union(finalDf)</span><br><span class="line">    emptyDf.printSchema()</span><br><span class="line">    emptyDf.show()</span><br><span class="line"></span><br><span class="line">    emptyDf.filter(col(<span class="string">"itemId"</span>) === <span class="number">6238081929</span>L and col(<span class="string">"label"</span>).notEqual(col(<span class="string">"result"</span>)))</span><br><span class="line">      .show()</span><br><span class="line"></span><br><span class="line">    <span class="keyword">val</span> attributeTypeIds = <span class="type">Array</span>.fill(<span class="number">3</span>)(<span class="number">100</span>)</span><br><span class="line">    <span class="keyword">val</span> attributeTypeIdsStr = <span class="type">Joiner</span>.on(<span class="string">","</span>).join(java.util.<span class="type">Arrays</span>.asList(attributeTypeIds:_*))</span><br><span class="line">    println(attributeTypeIdsStr)</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    <span class="keyword">import</span> scala.collection.<span class="type">JavaConverters</span>._</span><br><span class="line">    emptyDf = emptyDf.filter(!col(<span class="string">"itemId"</span>).isin(trainItemIds.asScala.map(<span class="type">Long2long</span>).toList:_*))</span><br><span class="line">    emptyDf.show(<span class="literal">false</span>)</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="知识点"><a href="#知识点" class="headerlink" title="知识点"></a>知识点</h2><h3 id="Spark-SQL-Data-Sources"><a href="#Spark-SQL-Data-Sources" class="headerlink" title="Spark SQL Data Sources"></a>Spark SQL Data Sources</h3><p>Spark SQL 通过 <code>DataFrameReader</code>  类支持读取各种类型的数据源，比如  Parquet、ORC、JSON、CSV 等格式的文件，Hive table，以及其他 database。而 Elasticsearch 只不过是众多数据源中的一种，<code>DataFrameReader</code> 通过 <code>format(...)</code> 指定数据源格式，通过 <code>option(...)</code> 定制对应数据源下的配置，最后通过 <code>load()</code> 加载生成 <code>DataFrame</code>，也就是 <code>Dataset[Row]</code> 的类型别名。有了 <code>DataFrame</code>，就可以创建一个临时表，然后就能以 SQL 的方式读取数据。</p>
+<p>在 Spark 1.5 以前，Elasticsearch 在 <code>format(...)</code> 中对应的 source 名需要是全包名 <code>org.elasticsearch.spark.sql</code>，而在 Spark 1.5 以及之后的版本，source 名称简化为 <code>es</code>。</p>
+<h3 id="Spark-SQL-中-DataFrame-常用-API"><a href="#Spark-SQL-中-DataFrame-常用-API" class="headerlink" title="Spark SQL 中 DataFrame 常用 API"></a>Spark SQL 中 DataFrame 常用 API</h3><ul>
+<li>df.printSchema()，打印 schema</li>
+<li>df.show()，查看数据列表，默认是 truncate 前 20 条，传 false 时列出全部数据。</li>
+<li>df.createOrReplaceTempView(“view_name”)，构建临时表视图，方便后续 SQL 操作。</li>
+<li>df.withColumn()，添加新列或替换现有列。<ul>
+<li>df.withColumn(“final_result”, lit(“PASS”)) ，通过 <code>lit</code> 添加常量列。</li>
+</ul>
+</li>
+<li>df.filter(col(“label”).isNotNull)，用指定的条件过滤行。</li>
+<li>df.dropDuplicates(“itemId”,”attributeId”)，按指定列对行去重，返回新的数据集。</li>
+<li>df.union(otherDf)，将两个 DataFrame 的记录合并且不去重，相当于 union all。</li>
+<li>df.toDF(“itemId”, “attributeId”, “label”, “final_result”)，为 df 各列指定一个有意义的名称。</li>
+</ul>
+<h3 id="Scala-与-Java-类型映射"><a href="#Scala-与-Java-类型映射" class="headerlink" title="Scala 与 Java 类型映射"></a>Scala 与 Java 类型映射</h3><ul>
+<li>scala.Long -&gt; long</li>
+<li>Array[T] -&gt; T[]</li>
+</ul>
+<h3 id="Scala-与-Java-类型转换"><a href="#Scala-与-Java-类型转换" class="headerlink" title="Scala 与 Java 类型转换"></a>Scala 与 Java 类型转换</h3><figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> scala.collection.<span class="type">JavaConverters</span>._</span><br><span class="line">newDf = df.filter(!col(<span class="string">"itemId"</span>).isin(trainItemIds.asScala.map(<span class="type">Long2long</span>).toList:_*))</span><br></pre></td></tr></table></figure>
+
+<h3 id="Scala-中的"><a href="#Scala-中的" class="headerlink" title="Scala 中的 : _*"></a>Scala 中的 <code>: _*</code></h3><p><code>:_*</code> 是 <strong>type ascription</strong> 的一个特例，它会告诉编译器将序列类型的单个参数视为变参数序列，即 varargs。应用例子，</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">val</span> indices = <span class="type">Array</span>(<span class="string">"aen-label"</span>, <span class="string">"aen-label-seller"</span>)</span><br><span class="line"><span class="type">Joiner</span>.on(<span class="string">","</span>).join(java.util.<span class="type">Arrays</span>.asList(indices:_*))</span><br></pre></td></tr></table></figure>
+
+<h2 id="踩的坑"><a href="#踩的坑" class="headerlink" title="踩的坑"></a>踩的坑</h2><h3 id="es-nodes-wan-only"><a href="#es-nodes-wan-only" class="headerlink" title="es.nodes.wan.only"></a>es.nodes.wan.only</h3><p>该配置项表示连接器是否用于 WAN 上的云或受限环境如 AWS 中的 Elasticsearch 实例，默认为 false，而公司的 Elasticsearch 集群是在 AWS 上的，endpoint 只能在内网访问，因而刚开始测试时，遇到如下报错，</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line">Exception in thread "main" org.elasticsearch.hadoop.EsHadoopIllegalArgumentException: No data nodes with HTTP-enabled available</span><br><span class="line">	at org.elasticsearch.hadoop.rest.InitializationUtils.filterNonDataNodesIfNeeded(InitializationUtils.java:159)</span><br><span class="line">	at org.elasticsearch.hadoop.rest.RestService.findPartitions(RestService.java:223)</span><br><span class="line">	at org.elasticsearch.spark.rdd.AbstractEsRDD.esPartitions$lzycompute(AbstractEsRDD.scala:73)</span><br><span class="line">	at org.elasticsearch.spark.rdd.AbstractEsRDD.esPartitions(AbstractEsRDD.scala:72)</span><br><span class="line">	at org.elasticsearch.spark.rdd.AbstractEsRDD.getPartitions(AbstractEsRDD.scala:44)</span><br><span class="line">	at org.apache.spark.rdd.RDD$$anonfun$partitions$2.apply(RDD.scala:253)</span><br><span class="line">	at org.apache.spark.rdd.RDD$$anonfun$partitions$2.apply(RDD.scala:251)</span><br><span class="line">	at scala.Option.getOrElse(Option.scala:121)</span><br><span class="line">	at org.apache.spark.rdd.RDD.partitions(RDD.scala:251)</span><br><span class="line">	at org.apache.spark.rdd.MapPartitionsRDD.getPartitions(MapPartitionsRDD.scala:46)</span><br><span class="line">	at org.apache.spark.rdd.RDD$$anonfun$partitions$2.apply(RDD.scala:253)</span><br><span class="line">	at org.apache.spark.rdd.RDD$$anonfun$partitions$2.apply(RDD.scala:251)</span><br><span class="line">	at scala.Option.getOrElse(Option.scala:121)</span><br><span class="line">	at org.apache.spark.rdd.RDD.partitions(RDD.scala:251)</span><br><span class="line">	at org.apache.spark.rdd.MapPartitionsRDD.getPartitions(MapPartitionsRDD.scala:46)</span><br><span class="line">	at org.apache.spark.rdd.RDD$$anonfun$partitions$2.apply(RDD.scala:253)</span><br><span class="line">	at org.apache.spark.rdd.RDD$$anonfun$partitions$2.apply(RDD.scala:251)</span><br><span class="line">	at scala.Option.getOrElse(Option.scala:121)</span><br><span class="line">	at org.apache.spark.rdd.RDD.partitions(RDD.scala:251)</span><br><span class="line">	at org.apache.spark.rdd.MapPartitionsRDD.getPartitions(MapPartitionsRDD.scala:46)</span><br><span class="line">	at org.apache.spark.rdd.RDD$$anonfun$partitions$2.apply(RDD.scala:253)</span><br><span class="line">	at org.apache.spark.rdd.RDD$$anonfun$partitions$2.apply(RDD.scala:251)</span><br><span class="line">	at scala.Option.getOrElse(Option.scala:121)</span><br><span class="line">	at org.apache.spark.rdd.RDD.partitions(RDD.scala:251)</span><br><span class="line">	at org.apache.spark.rdd.MapPartitionsRDD.getPartitions(MapPartitionsRDD.scala:46)</span><br><span class="line">	at org.apache.spark.rdd.RDD$$anonfun$partitions$2.apply(RDD.scala:253)</span><br><span class="line">	at org.apache.spark.rdd.RDD$$anonfun$partitions$2.apply(RDD.scala:251)</span><br><span class="line">	at scala.Option.getOrElse(Option.scala:121)</span><br><span class="line">	at org.apache.spark.rdd.RDD.partitions(RDD.scala:251)</span><br><span class="line">	at org.apache.spark.sql.execution.SparkPlan.executeTake(SparkPlan.scala:340)</span><br><span class="line">	at org.apache.spark.sql.execution.CollectLimitExec.executeCollect(limit.scala:38)</span><br><span class="line">	at org.apache.spark.sql.Dataset.org$apache$spark$sql$Dataset$$collectFromPlan(Dataset.scala:3278)</span><br><span class="line">	at org.apache.spark.sql.Dataset$$anonfun$head$1.apply(Dataset.scala:2489)</span><br><span class="line">	at org.apache.spark.sql.Dataset$$anonfun$head$1.apply(Dataset.scala:2489)</span><br><span class="line">	at org.apache.spark.sql.Dataset$$anonfun$52.apply(Dataset.scala:3259)</span><br><span class="line">	at org.apache.spark.sql.execution.SQLExecution$.withNewExecutionId(SQLExecution.scala:77)</span><br><span class="line">	at org.apache.spark.sql.Dataset.withAction(Dataset.scala:3258)</span><br><span class="line">	at org.apache.spark.sql.Dataset.head(Dataset.scala:2489)</span><br><span class="line">	at org.apache.spark.sql.Dataset.take(Dataset.scala:2703)</span><br><span class="line">	at org.apache.spark.sql.Dataset.showString(Dataset.scala:254)</span><br><span class="line">	at org.apache.spark.sql.Dataset.show(Dataset.scala:723)</span><br></pre></td></tr></table></figure>
+
+<p>通过 <code>option(&quot;es.nodes.wan.only&quot;, value = true)</code> 将配置项设置为 true 后恢复正常。</p>
+<h3 id="importing-spark-implicits"><a href="#importing-spark-implicits" class="headerlink" title="importing spark.implicits._"></a>importing spark.implicits._</h3><p>在遍历 DataFrame 时遇到如下编译错误，</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Unable to find encoder for type stored in a Dataset.  Primitive types (Int, String, etc) and Product types (case classes) are supported by importing spark.implicits._</span><br></pre></td></tr></table></figure>
+
+<p>在处理 DataFrame 之前需要加上 <code>importing spark.implicits._</code>，用于将常见的 Scala 对象转换为 DataFrame，通常在获取 SparkSession 后立马 import。</p>
+<h3 id="Spark-SQL-读取-hive-表中-array-类型时，对于-Scala-语言，得到的类型是-WrappedArray-而不是-Array"><a href="#Spark-SQL-读取-hive-表中-array-类型时，对于-Scala-语言，得到的类型是-WrappedArray-而不是-Array" class="headerlink" title="Spark SQL 读取 hive 表中 array 类型时，对于 Scala 语言，得到的类型是 WrappedArray 而不是 Array"></a>Spark SQL 读取 hive 表中 array 类型时，对于 Scala 语言，得到的类型是 <code>WrappedArray</code> 而不是 <code>Array</code></h3><p>当我们通过 <code>createOrReplaceTempView(&quot;temp_labels&quot;)</code> 构建一个临时表视图后，就可以通过 SQL 像操作 hive 表那样读取数据。例如读取指定的列，</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">val</span> sqlDf = spark.sql(<span class="string">"select itemId, labels from temp_labels where itemId in (123, 456)"</span>)</span><br></pre></td></tr></table></figure>
+
+<p>通过 <code>sqlDf.printSchema()</code> 可以看到 sqlDf 的 schema 长这样，</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">root</span><br><span class="line"> |-- itemId: long (nullable = true)</span><br><span class="line"> |-- labels: array (nullable = true)</span><br><span class="line"> |    |-- element: struct (containsNull = true)</span><br><span class="line"> |    |    |-- id: long (nullable = true)</span><br><span class="line"> |    |    |-- label: string (nullable = true)</span><br></pre></td></tr></table></figure>
+
+<p><code>labels</code> 是包含 struct 的数组，于是从 row 中将 <code>labels</code> 列读出时想尝试转换为 Array，</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">val</span> newDf = sqlDf.map(</span><br><span class="line">  row =&gt; &#123;</span><br><span class="line">    <span class="keyword">val</span> labels = row.getAs[<span class="type">Array</span>[<span class="type">Row</span>]](<span class="string">"labels"</span>)</span><br><span class="line">    <span class="keyword">val</span> labelValue = labels.find(p =&gt; p.getAs[<span class="type">Long</span>](<span class="string">"id"</span>) == attributeId).map(p =&gt; p.getAs[<span class="type">String</span>](<span class="string">"label"</span>))</span><br><span class="line"></span><br><span class="line">    (row.getAs[<span class="type">Long</span>](<span class="string">"itemId"</span>), attributeId, labelValue.orNull)</span><br><span class="line">  &#125;</span><br><span class="line">)</span><br></pre></td></tr></table></figure>
+
+<p>结果报错如下，</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">java.lang.ClassCastException: scala.collection.mutable.WrappedArray$ofRef cannot be cast to [Lorg.apache.spark.sql.Row;</span><br></pre></td></tr></table></figure>
+
+<p>可以看到 Spark SQL 在读取表中数组列时，是用的 <code>scala.collection.mutable.WrappedArray</code> 来存储结果的，看其类定义可知，它是间接实现 Seq 接口的，所以也可用 <code>row.getAs[Seq[Row]](&quot;labels&quot;)</code> 来读取。**这里需要注意的是，Array[T] 虽然在 Scala 源码定义中是 class，但其对标的 Java 类型是原生数组 T[]**。</p>
+<h3 id="判断-Column-是否为-null-时，需要用-is-null-或-is-not-null，而不是-或"><a href="#判断-Column-是否为-null-时，需要用-is-null-或-is-not-null，而不是-或" class="headerlink" title="判断 Column 是否为 null 时，需要用 is null 或 is not null，而不是 === 或  !=="></a>判断 Column 是否为 null 时，需要用 <code>is null</code> 或 <code>is not null</code>，而不是 <code>===</code> 或 <code> !==</code></h3><p>对于错误的用法，filter 并不会生效，就像下面这样</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">newDf.filter(col(<span class="string">"label"</span>) !== <span class="literal">null</span>)</span><br></pre></td></tr></table></figure>
+
+<p>这一点和 hive 表以及 MySQL 表判断字段是否为 null，是保持一致的，应该像下面这样，</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">newDf.filter(col(&quot;label&quot;).isNotNull)</span><br></pre></td></tr></table></figure>
+
+<h1 id="最终代码"><a href="#最终代码" class="headerlink" title="最终代码"></a>最终代码</h1><figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> com.google.common.base.<span class="type">Joiner</span></span><br><span class="line"><span class="keyword">import</span> com.typesafe.scalalogging.<span class="type">LazyLogging</span></span><br><span class="line"><span class="keyword">import</span> org.apache.spark.sql.&#123;<span class="type">DataFrame</span>, <span class="type">Row</span>, <span class="type">SaveMode</span>, <span class="type">SparkSession</span>&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">object</span> <span class="title">TestMain</span> <span class="keyword">extends</span> <span class="title">LazyLogging</span> </span>&#123;</span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">main</span></span>(args: <span class="type">Array</span>[<span class="type">String</span>]): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">val</span> myUtils = <span class="keyword">new</span> <span class="type">MyUtils</span></span><br><span class="line">    <span class="keyword">new</span> <span class="type">TestApp</span>(myUtils).run()</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">TestApp</span>(<span class="params">myUtils: <span class="type">MyUtils</span></span>) <span class="keyword">extends</span> <span class="title">Serializable</span> <span class="keyword">with</span> <span class="title">LazyLogging</span> </span>&#123;  </span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">esDf</span></span>(spark: <span class="type">SparkSession</span>, indices: <span class="type">Array</span>[<span class="type">String</span>]): <span class="type">DataFrame</span> = &#123;</span><br><span class="line">    spark.read</span><br><span class="line">      .format(<span class="string">"es"</span>)</span><br><span class="line">      .option(<span class="string">"es.nodes"</span>, myUtils.esHost())</span><br><span class="line">      .option(<span class="string">"es.port"</span>, <span class="string">"9200"</span>)</span><br><span class="line">      .option(<span class="string">"es.nodes.wan.only"</span>, value = <span class="literal">true</span>)</span><br><span class="line">      .option(<span class="string">"es.resource"</span>, <span class="type">Joiner</span>.on(<span class="string">","</span>).join(java.util.<span class="type">Arrays</span>.asList(indices:_*)) + <span class="string">"/label"</span>)</span><br><span class="line">      .option(<span class="string">"es.scroll.size"</span>, <span class="number">2000</span>)</span><br><span class="line">      .load()</span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">run</span></span>(): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">val</span> spark = myUtils.getSparkSession</span><br><span class="line">    <span class="keyword">import</span> spark.implicits._</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">val</span> esTempView = <span class="string">"es_label"</span></span><br><span class="line">    <span class="keyword">val</span> labelNames = <span class="type">Array</span>(<span class="string">"aen-label-retail"</span>, <span class="string">"aen-label-seller"</span>)</span><br><span class="line">    esDf(spark, labelNames).createOrReplaceTempView(esTempView)</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">val</span> labelDf = getLabelDf(spark, itemIdsStr, attributeTypeIds, esTempView)</span><br><span class="line">    println(<span class="string">"debug log"</span>)</span><br><span class="line">    labelDf.printSchema()</span><br><span class="line">    labelDf.show()</span><br><span class="line">    labelDf.createOrReplaceTempView(<span class="string">"final_labels"</span>)</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">val</span> data = spark.sql(</span><br><span class="line">      <span class="string">s""</span><span class="string">"</span></span><br><span class="line"><span class="string">      |select cc.*, pp.final_result, pp.label, null as remark</span></span><br><span class="line"><span class="string">      |from temp_request cc</span></span><br><span class="line"><span class="string">      |left join final_labels pp</span></span><br><span class="line"><span class="string">      |on cc.itemid = pp.itemId</span></span><br><span class="line"><span class="string">      |and cc.attributetypeid = pp.attributeId</span></span><br><span class="line"><span class="string">      |where cc.profile = '$jobId'</span></span><br><span class="line"><span class="string">      |"</span><span class="string">""</span>.stripMargin)</span><br><span class="line"></span><br><span class="line">    data.distinct().write.mode(<span class="type">SaveMode</span>.<span class="type">Overwrite</span>)</span><br><span class="line">    .option(<span class="string">"compression"</span>, <span class="string">"gzip"</span>)</span><br><span class="line">    .json(<span class="string">s"s3://sherlockyb-test/check-precision/job_id=<span class="subst">$jobId</span>"</span>)</span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">getLabelDf</span></span>(spark: <span class="type">SparkSession</span>, itemIdsStr: <span class="type">String</span>, attributeTypeIds: <span class="type">Array</span>[<span class="type">String</span>], esTempView: <span class="type">String</span>): <span class="type">DataFrame</span> = &#123;</span><br><span class="line">    <span class="keyword">import</span> spark.implicits._</span><br><span class="line"></span><br><span class="line">    <span class="keyword">val</span> sqlDf = spark.sql(<span class="string">s"select itemId, labels from <span class="subst">$esTempView</span> where itemId in (<span class="subst">$itemIdsStr</span>)"</span>)</span><br><span class="line">    <span class="keyword">val</span> emptyDf = spark.emptyDataFrame</span><br><span class="line">    <span class="keyword">var</span> labelDf = emptyDf</span><br><span class="line">    attributeTypeIds.foreach(attributeTypeId =&gt; &#123;</span><br><span class="line">      <span class="keyword">val</span> attributeDf = sqlDf</span><br><span class="line">        .map(row =&gt; &#123;</span><br><span class="line">          <span class="keyword">val</span> labels = row.getAs[<span class="type">Seq</span>[<span class="type">Row</span>]](<span class="string">"labels"</span>)</span><br><span class="line">          <span class="keyword">val</span> labelValue = labels.find(p =&gt; p.getAs[<span class="type">Long</span>](<span class="string">"id"</span>) == attributeTypeId.toLong).map(p =&gt; p.getAs[<span class="type">String</span>](<span class="string">"label"</span>))</span><br><span class="line"></span><br><span class="line">          (row.getAs[<span class="type">Long</span>](<span class="string">"itemId"</span>), attributeTypeId.toLong, labelValue.orNull)</span><br><span class="line">        &#125;)</span><br><span class="line">        .withColumn(<span class="string">"final_result"</span>, lit(<span class="string">"PASS"</span>))</span><br><span class="line">        .toDF(<span class="string">"itemId"</span>, <span class="string">"attributeId"</span>, <span class="string">"label"</span>, <span class="string">"final_result"</span>)</span><br><span class="line">        .filter(col(<span class="string">"label"</span>).isNotNull)</span><br><span class="line">      <span class="keyword">if</span> (labelDf == emptyDf) &#123;</span><br><span class="line">        labelDf = attributeDf</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        labelDf = labelDf.union(attributeDf)</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;)</span><br><span class="line"></span><br><span class="line">    labelDf.dropDuplicates(<span class="string">"itemId"</span>,<span class="string">"attributeId"</span>)</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="补充：提交-spark-job"><a href="#补充：提交-spark-job" class="headerlink" title="补充：提交 spark job"></a>补充：提交 spark job</h1><p>将 job 工程打包为 Jar，上传到 AWS 的 s3，比如 <code>s3://sherlockyb-test/1.0.0/artifacts/spark/</code> 目录下，然后通过 Genie 提交 spark job 到 Spark 集群运行。Genie 是 Netflix 研发的联合作业执行引擎，提供 REST-full API 来运行各种大数据作业，如 Hadoop、Pig、Hive、Spark、Presto、Sqoop 等。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">run_spark</span><span class="params">(job_name, spark_jar_name, spark_class_name, arg_str, spark_param=<span class="string">''</span>)</span>:</span></span><br><span class="line">    <span class="keyword">import</span> pygenie</span><br><span class="line"></span><br><span class="line">    pygenie.conf.DEFAULT_GENIE_URL = <span class="string">"genie.sherlockyb.club"</span></span><br><span class="line"></span><br><span class="line">    job = pygenie.jobs.GenieJob() \</span><br><span class="line">        .genie_username(<span class="string">'sherlockyb'</span>) \</span><br><span class="line">        .job_name(job_name) \</span><br><span class="line">        .job_version(<span class="string">'0.0.1'</span>) \</span><br><span class="line">        .metadata(teamId=<span class="string">'team_account'</span>) \</span><br><span class="line">        .metadata(teamCredential=<span class="string">'team_password'</span>)</span><br><span class="line"></span><br><span class="line">    job.cluster_tags([<span class="string">'type:yarn-kerberos'</span>, <span class="string">'sched:default'</span>])</span><br><span class="line">    job.command_tags([<span class="string">'type:spark-submit-kerberos'</span>, <span class="string">'ver:2.3.2'</span>])</span><br><span class="line">    job.command_arguments(</span><br><span class="line">        <span class="string">f"--class <span class="subst">&#123;spark_class_name&#125;</span> <span class="subst">&#123;spark_param&#125;</span> "</span></span><br><span class="line">        <span class="string">f"s3a://sherlockyb-test/1.0.0/artifacts/spark/<span class="subst">&#123;spark_jar_name&#125;</span> "</span></span><br><span class="line">        <span class="string">f"<span class="subst">&#123;arg_str&#125;</span>"</span></span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">    <span class="comment"># Submit the job to Genie</span></span><br><span class="line">    running_job = job.execute()</span><br><span class="line">    running_job.wait()</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">return</span> running_job.status</span><br></pre></td></tr></table></figure>
+
+
+      
+    </div>
+
+    <div>
+      
+        
+<div id="wechat_subscriber" style="display: block; padding: 10px 0; margin: 20px auto; width: 100%; text-align: center">
+    <img id="wechat_subscriber_qcode" src="/images/sherlockyb.jpg" alt="杨冰 wechat" style="width: 200px; max-width: 100%;">
+    <div>Javaer，关注机器学习、NLP方向，定期分享技术干货~</div>
+</div>
+
+
+      
+    </div>
+
+    <div>
+      
+        
+  <div style="padding: 10px 0; margin: 20px auto; width: 90%; text-align: center;">
+    <div>请我吃糖？</div>
+    <button id="rewardButton" disable="enable" onclick="var qr = document.getElementById('QR'); if (qr.style.display === 'none') {qr.style.display='block';} else {qr.style.display='none'}">
+      <span>赏</span>
+    </button>
+    <div id="QR" style="display: none;">
+      
+        <div id="wechat" style="display: inline-block">
+          <img id="wechat_qr" src="/images/wechatpay.jpg" alt="杨冰 WeChat Pay">
+          <p>微信打赏</p>
+        </div>
+      
+      
+    </div>
+  </div>
+
+
+      
+    </div>
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/Spark/" rel="tag"># Spark</a>
+          
+            <a href="/tags/Elasticsearch/" rel="tag"># Elasticsearch</a>
+          
+        </div>
+      
+      
+      
+        <ul class="post-copyright">
+          <li class="post-copyright-author">
+            <strong>本文作者：</strong>sherlockyb
+          </li>
+          <li class="post-copyright-link">
+            <strong>本文链接：</strong><a href="/2022/06/03/Spark-reading-elasticsearch-guide/" title="Spark读取elasticsearch数据指南">https://www.yangbing.fun/2022/06/03/Spark-reading-elasticsearch-guide/</a>
+          </li>
+          <li class="post-copyright-license">
+            <strong>许可协议： </strong>
+            除特殊声明外，本站博文均采用 <a href="http://creativecommons.org/licenses/by-nc-sa/3.0/cn/" rel="external nofollow" target="_blank">CC BY-NC-SA 3.0 CN</a> 许可协议，转载请注明出处！
+          </li>
+</ul>
+
+
+
+      
+        
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              上一篇
+              <a href="/2022/05/31/Some-thoughts-on-work-recently/" rel="next" title="最近关于工作的几点思考">
+                <i class="fa fa-chevron-left"></i> 最近关于工作的几点思考
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+          
+          </div>
+          
+
+
+          
+  <div class="comments" id="comments">
+    
+      <div id="utteranc-container"></div>
+    
+  </div>
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+          <img class="site-author-image" itemprop="image" src="/images/me.jpg" alt="杨冰">
+          <p class="site-author-name" itemprop="name">杨冰</p>
+           
+              <p class="site-description motion-element" itemprop="description"></p>
+           
+        </div>
+        <nav class="site-state motion-element">
+        
+          
+            <div class="site-state-item site-state-posts">
+              <a href="/archives">
+                <span class="site-state-item-count">13</span>
+                <span class="site-state-item-name">日志</span>
+              </a>
+            </div>
+          
+
+          
+            <div class="site-state-item site-state-categories">
+              <a href="/categories">
+                <span class="site-state-item-count">10</span>
+                <span class="site-state-item-name">分类</span>
+              </a>
+            </div>
+          
+
+          
+            <div class="site-state-item site-state-tags">
+              <a href="/tags">
+                <span class="site-state-item-count">24</span>
+                <span class="site-state-item-name">标签</span>
+              </a>
+            </div>
+          
+
+        </nav>
+
+        
+
+        <div class="links-of-author motion-element">
+          
+            
+              <span class="links-of-author-item">
+                <a href="https://github.com/sherlockyb" target="_blank" title="GitHub">
+                  
+                    <i class="fa fa-fw fa-github"></i>
+                  
+                  GitHub
+                </a>
+              </span>
+            
+              <span class="links-of-author-item">
+                <a href="mailto:yb_cswhu@aliyun.com" target="_blank" title="E-Mail">
+                  
+                    <i class="fa fa-fw fa-envelope"></i>
+                  
+                  E-Mail
+                </a>
+              </span>
+            
+              <span class="links-of-author-item">
+                <a href="https://www.jianshu.com/u/39bd7cd3d268" target="_blank" title="简书">
+                  
+                    <i class="fa fa-fw fa-book"></i>
+                  
+                  简书
+                </a>
+              </span>
+            
+              <span class="links-of-author-item">
+                <a href="https://www.zhihu.com/people/sherlockyb/activities" target="_blank" title="知乎">
+                  
+                    <i class="fa fa-fw fa-snapchat"></i>
+                  
+                  知乎
+                </a>
+              </span>
+            
+          
+        </div>
+
+        
+        
+
+        
+        
+          <div class="links-of-blogroll motion-element links-of-blogroll-inline">
+            <div class="links-of-blogroll-title">
+              <i class="fa  fa-fw fa-globe"></i>
+              友情链接
+            </div>
+            <ul class="links-of-blogroll-list">
+              
+                <li class="links-of-blogroll-item">
+                  <a href="http://zhenchao.org/" title="超哥" target="_blank">超哥</a>
+                </li>
+              
+            </ul>
+          </div>
+        
+
+        
+
+
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#环境说明"><span class="nav-number">1.</span> <span class="nav-text">环境说明</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#准备工作"><span class="nav-number">2.</span> <span class="nav-text">准备工作</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#本地测试"><span class="nav-number">3.</span> <span class="nav-text">本地测试</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#测试代码"><span class="nav-number">3.1.</span> <span class="nav-text">测试代码</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#知识点"><span class="nav-number">3.2.</span> <span class="nav-text">知识点</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Spark-SQL-Data-Sources"><span class="nav-number">3.2.1.</span> <span class="nav-text">Spark SQL Data Sources</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Spark-SQL-中-DataFrame-常用-API"><span class="nav-number">3.2.2.</span> <span class="nav-text">Spark SQL 中 DataFrame 常用 API</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Scala-与-Java-类型映射"><span class="nav-number">3.2.3.</span> <span class="nav-text">Scala 与 Java 类型映射</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Scala-与-Java-类型转换"><span class="nav-number">3.2.4.</span> <span class="nav-text">Scala 与 Java 类型转换</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Scala-中的"><span class="nav-number">3.2.5.</span> <span class="nav-text">Scala 中的 : _*</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#踩的坑"><span class="nav-number">3.3.</span> <span class="nav-text">踩的坑</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#es-nodes-wan-only"><span class="nav-number">3.3.1.</span> <span class="nav-text">es.nodes.wan.only</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#importing-spark-implicits"><span class="nav-number">3.3.2.</span> <span class="nav-text">importing spark.implicits._</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Spark-SQL-读取-hive-表中-array-类型时，对于-Scala-语言，得到的类型是-WrappedArray-而不是-Array"><span class="nav-number">3.3.3.</span> <span class="nav-text">Spark SQL 读取 hive 表中 array 类型时，对于 Scala 语言，得到的类型是 WrappedArray 而不是 Array</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#判断-Column-是否为-null-时，需要用-is-null-或-is-not-null，而不是-或"><span class="nav-number">3.3.4.</span> <span class="nav-text">判断 Column 是否为 null 时，需要用 is null 或 is not null，而不是 === 或  !==</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#最终代码"><span class="nav-number">4.</span> <span class="nav-text">最终代码</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#补充：提交-spark-job"><span class="nav-number">5.</span> <span class="nav-text">补充：提交 spark job</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">
+  
+  &copy;  2017 - 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">杨冰</span>
+</div>
+
+
+<div class="powered-by">
+  由 <a class="theme-link" href="https://hexo.io">Hexo</a> 强力驱动
+</div>
+
+<div class="theme-info">
+  主题 -
+  <a class="theme-link" href="https://github.com/iissnan/hexo-theme-next">
+    NexT.Pisces
+  </a>
+</div>
+
+
+        
+
+<div class="busuanzi-count">
+
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+  
+    <span class="site-uv">你是第<span class="busuanzi-value" id="busuanzi_value_site_uv"></span>个访客哦</span>
+  
+
+  
+    <span class="site-pv">总访问<span class="busuanzi-value" id="busuanzi_value_site_pv"></span>次</span>
+  
+  
+</div>
+
+
+
+        
+      </div>
+    </footer>
+
+    <div class="back-to-top">
+      <i class="fa fa-arrow-up"></i>
+    </div>
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+  
+  <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+
+  
+  <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+
+  
+  <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.0"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.0"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.0"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.0"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.0"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.0"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.0"></script>
+
+
+
+  
+
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+  <script type="text/javascript">
+    var div = document.createElement('div');
+    div.id = 'utteranc-comments';
+
+    var styleEle = document.createElement('style');
+    styleEle.innerHTML = '.utterances-frame{min-width: 102%; left: -5px}';
+    div.appendChild(styleEle);
+
+    var scriptEle = document.createElement('script');
+    scriptEle.src = 'https://utteranc.es/client.js';
+    scriptEle.setAttribute('repo', 'sherlockyb/blog-comments');
+    scriptEle.setAttribute('issue-term', 'title');
+    scriptEle.setAttribute('theme', 'github-dark-orange');
+    scriptEle.setAttribute('label', 'question');
+    scriptEle.setAttribute('async', !0);
+    div.appendChild(scriptEle);
+
+    var container = document.getElementById('utteranc-container');
+    if (container) {
+      container.appendChild(div);
+    }
+  </script>
+
+
+  
+  
+  <script type="text/javascript">
+    // Popup Window;
+    var isfetched = false;
+    // Search DB path;
+    var search_path = "search.xml";
+    if (search_path.length == 0) {
+      search_path = "search.xml";
+    }
+    var path = "/" + search_path;
+    // monitor main search box;
+
+    function proceedsearch() {
+      $("body").append('<div class="popoverlay">').css('overflow', 'hidden');
+      $('.popup').toggle();
+    }
+    // search function;
+    var searchFunc = function(path, search_id, content_id) {
+      'use strict';
+      $.ajax({
+        url: path,
+        dataType: "xml",
+        async: true,
+        success: function( xmlResponse ) {
+          // get the contents from search data
+          isfetched = true;
+          $('.popup').detach().appendTo('.header-inner');
+          var datas = $( "entry", xmlResponse ).map(function() {
+            return {
+              title: $( "title", this ).text(),
+              content: $("content",this).text(),
+              url: $( "url" , this).text()
+            };
+          }).get();
+          var $input = document.getElementById(search_id);
+          var $resultContent = document.getElementById(content_id);
+          $input.addEventListener('input', function(){
+            var matchcounts = 0;
+            var str='<ul class=\"search-result-list\">';
+            var keywords = this.value.trim().toLowerCase().split(/[\s\-]+/);
+            $resultContent.innerHTML = "";
+            if (this.value.trim().length > 1) {
+              // perform local searching
+              datas.forEach(function(data) {
+                var isMatch = false;
+                var content_index = [];
+                var data_title = data.title.trim().toLowerCase();
+                var data_content = data.content.trim().replace(/<[^>]+>/g,"").toLowerCase();
+                var data_url = decodeURIComponent(data.url);
+                var index_title = -1;
+                var index_content = -1;
+                var first_occur = -1;
+                // only match artiles with not empty titles and contents
+                if(data_title != '') {
+                  keywords.forEach(function(keyword, i) {
+                    index_title = data_title.indexOf(keyword);
+                    index_content = data_content.indexOf(keyword);
+                    if( index_title >= 0 || index_content >= 0 ){
+                      isMatch = true;
+                      if (i == 0) {
+                        first_occur = index_content;
+                      }
+                    }
+
+                  });
+                }
+                // show search results
+                if (isMatch) {
+                  matchcounts += 1;
+                  str += "<li><a href='"+ data_url +"' class='search-result-title'>"+ data_title +"</a>";
+                  var content = data.content.trim().replace(/<[^>]+>/g,"");
+                  if (first_occur >= 0) {
+                    // cut out 100 characters
+                    var start = first_occur - 20;
+                    var end = first_occur + 80;
+                    if(start < 0){
+                      start = 0;
+                    }
+                    if(start == 0){
+                      end = 50;
+                    }
+                    if(end > content.length){
+                      end = content.length;
+                    }
+                    var match_content = content.substring(start, end);
+                    // highlight all keywords
+                    keywords.forEach(function(keyword){
+                      var regS = new RegExp(keyword, "gi");
+                      match_content = match_content.replace(regS, "<b class=\"search-keyword\">"+keyword+"</b>");
+                    });
+
+                    str += "<p class=\"search-result\">" + match_content +"...</p>"
+                  }
+                  str += "</li>";
+                }
+              })};
+            str += "</ul>";
+            if (matchcounts == 0) { str = '<div id="no-result"><i class="fa fa-frown-o fa-5x" /></div>' }
+            if (keywords == "") { str = '<div id="no-result"><i class="fa fa-search fa-5x" /></div>' }
+            $resultContent.innerHTML = str;
+          });
+          proceedsearch();
+        }
+      });}
+
+    // handle and trigger popup window;
+    $('.popup-trigger').click(function(e) {
+      e.stopPropagation();
+      if (isfetched == false) {
+        searchFunc(path, 'local-search-input', 'local-search-result');
+      } else {
+        proceedsearch();
+      };
+    });
+
+    $('.popup-btn-close').click(function(e){
+      $('.popup').hide();
+      $(".popoverlay").remove();
+      $('body').css('overflow', '');
+    });
+    $('.popup').click(function(e){
+      e.stopPropagation();
+    });
+  </script>
+
+
+  
+
+  
+
+  
+<script>
+(function(){
+    var bp = document.createElement('script');
+    var curProtocol = window.location.protocol.split(':')[0];
+    if (curProtocol === 'https') {
+        bp.src = 'https://zz.bdstatic.com/linksubmit/push.js';        
+    }
+    else {
+        bp.src = 'http://push.zhanzhang.baidu.com/push.js';
+    }
+    var s = document.getElementsByTagName("script")[0];
+    s.parentNode.insertBefore(bp, s);
+})();
+</script>
+
+
+  
+
+
+</body>
+</html>
