@@ -40,7 +40,7 @@
       
       <categories>
           
-          <category> work </category>
+          <category> Work </category>
           
       </categories>
       
@@ -66,6 +66,8 @@
       <categories>
           
           <category> Kafka </category>
+          
+          <category> Source Code </category>
           
       </categories>
       
@@ -119,7 +121,7 @@
       
       <categories>
           
-          <category> life </category>
+          <category> Work </category>
           
       </categories>
       
@@ -171,7 +173,9 @@
       
       <categories>
           
-          <category> java </category>
+          <category> Java </category>
+          
+          <category> Source Code </category>
           
       </categories>
       
@@ -198,7 +202,7 @@
       
       <categories>
           
-          <category> java </category>
+          <category> Java </category>
           
       </categories>
       
@@ -223,7 +227,7 @@
       
       <categories>
           
-          <category> Struts2 </category>
+          <category> Java </category>
           
       </categories>
       
@@ -254,7 +258,7 @@
       
       <categories>
           
-          <category> java </category>
+          <category> Java </category>
           
       </categories>
       
@@ -280,6 +284,8 @@
       <categories>
           
           <category> Linux </category>
+          
+          <category> Security </category>
           
       </categories>
       
@@ -336,6 +342,8 @@
       <categories>
           
           <category> Spring </category>
+          
+          <category> Source Code </category>
           
       </categories>
       
