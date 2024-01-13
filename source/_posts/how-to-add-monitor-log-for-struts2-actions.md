@@ -2,7 +2,7 @@
 title: 如何优雅地为Struts2的action加监控日志
 date: 2017-12-04 15:22:05
 categories:
-- Struts2
+- Java
 tags:
 - Struts2
 - aop

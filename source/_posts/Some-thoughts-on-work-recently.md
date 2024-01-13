@@ -3,7 +3,7 @@ title: 最近关于工作的几点思考
 tags:
   - 思考
 categories:
-  - work
+  - Work
 date: 2022-05-31 12:00:00
 ---
 

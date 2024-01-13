@@ -5,7 +5,8 @@ tags:
 - JDK源码
 - 字节码
 categories:
-- java
+- Java
+- Source Code
 ---
 
 　　当我在Google输入“Long类型的比较”时，会出现多如牛毛的与这个问题相关的博文，并且这些博文对此问题的看法如出一辙，都“不约而同”地持有如下观点：

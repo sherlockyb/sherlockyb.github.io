@@ -3,6 +3,7 @@ title: 从kinit到kerberos安全机制
 date: 2017-06-04 14:51:18
 categories:
 - Linux
+- Security
 tags:
 - Shell编程
 - kerberos

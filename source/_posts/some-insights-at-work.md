@@ -3,7 +3,7 @@ title: 工作中的一些感悟
 tags:
   - 思考
 categories:
-  - life
+  - Work
 date: 2019-12-21 12:00:00
 ---
 
